@@ -1,0 +1,8 @@
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+
+<https://example.org/manifests/w3c-subset-root> a mf:Manifest ;
+   mf:name "SPARQLKit W3C include root" ;
+   mf:include (
+     <w3c_subset_manifest_part_a.ttl>
+     <w3c_subset_manifest_part_b.ttl>
+   ) .

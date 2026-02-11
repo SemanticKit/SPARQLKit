@@ -1,0 +1,89 @@
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix sk: <https://codex.local/sparqlkit/conformance#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<https://example.org/manifests/w3c-subset> a mf:Manifest ;
+   mf:name "SPARQLKit W3C subset" ;
+   mf:entries (
+     <#json-bindings>
+     <#json-boolean>
+     <#xml-bindings>
+     <#xml-boolean>
+     <#csv-bindings>
+     <#tsv-bindings>
+     <#tsv-triple-terms>
+     <#proto-get-query>
+     <#proto-post-query>
+     <#proto-post-update>
+     <#render-query>
+   ) .
+
+<#json-bindings>
+   a sk:DecodeJSONBindingsTest ;
+   mf:result <select_result.json> ;
+   sk:expectVariableCount "2" ;
+   sk:expectBindingCount "3" .
+
+<#json-boolean>
+   a sk:DecodeJSONBooleanTest ;
+   mf:result <ask_result_true.json> ;
+   sk:expectBoolean "true" .
+
+<#xml-bindings>
+   a sk:DecodeXMLBindingsTest ;
+   mf:result <select_result_xml.xml> ;
+   sk:expectVariableCount "2" ;
+   sk:expectBindingCount "2" .
+
+<#xml-boolean>
+   a sk:DecodeXMLBooleanTest ;
+   mf:result <ask_result_true.xml> ;
+   sk:expectBoolean "true" .
+
+<#csv-bindings>
+   a sk:DecodeCSVBindingsTest ;
+   mf:result <select_result_csv.csv> ;
+   sk:expectVariableCount "2" ;
+   sk:expectBindingCount "3" .
+
+<#tsv-bindings>
+   a sk:DecodeTSVBindingsTest ;
+   mf:result <select_result_tsv.tsv> ;
+   sk:expectVariableCount "2" ;
+   sk:expectBindingCount "3" .
+
+<#tsv-triple-terms>
+   a sk:DecodeTSVBindingsTest ;
+   mf:result <select_result_tsv_triple_terms.tsv> ;
+   sk:expectVariableCount "2" ;
+   sk:expectBindingCount "1" .
+
+<#proto-get-query>
+   a sk:ProtocolGetQueryRequestTest ;
+   sk:query "SELECT ?s WHERE { ?s ?p ?o . }" ;
+   sk:defaultGraphURI "https://example.org/graphs/default" ;
+   sk:namedGraphURI "https://example.org/graphs/n1" ;
+   sk:expectURLContains "query=SELECT" ,
+                        "default-graph-uri=https://example.org/graphs/default" ,
+                        "named-graph-uri=https://example.org/graphs/n1" .
+
+<#proto-post-query>
+   a sk:ProtocolPostQueryRequestTest ;
+   sk:query "SELECT ?s WHERE { ?s ?p ?o . }" ;
+   sk:defaultGraphURI "https://example.org/graphs/default" ;
+   sk:expectBodyContains "query=SELECT" ,
+                         "default-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fdefault" .
+
+<#proto-post-update>
+   a sk:ProtocolPostUpdateRequestTest ;
+   sk:update "INSERT DATA { <s> <p> <o> . }" ;
+   sk:usingGraphURI "https://example.org/u-default" ;
+   sk:usingNamedGraphURI "https://example.org/u-named" ;
+   sk:expectBodyContains "update=INSERT%20DATA" ,
+                         "using-graph-uri=https%3A%2F%2Fexample.org%2Fu-default" ,
+                         "using-named-graph-uri=https%3A%2F%2Fexample.org%2Fu-named" .
+
+<#render-query>
+   a sk:RenderQueryTest ;
+   sk:queryTemplate "basicSelect" ;
+   sk:expectContains "SELECT ?s ?o" , "LIMIT 5" , "WHERE {" .

@@ -1,0 +1,19 @@
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix sk: <https://codex.local/sparqlkit/conformance#> .
+
+<https://example.org/manifests/w3c-subset-part-b> a mf:Manifest ;
+   mf:name "Subset B" ;
+   mf:entries (
+     <#xml-boolean>
+     <#render-query>
+   ) .
+
+<#xml-boolean>
+   a sk:DecodeXMLBooleanTest ;
+   mf:result <ask_result_true.xml> ;
+   sk:expectBoolean "true" .
+
+<#render-query>
+   a sk:RenderQueryTest ;
+   sk:queryTemplate "basicSelect" ;
+   sk:expectContains "SELECT ?s ?o" , "LIMIT 5" .

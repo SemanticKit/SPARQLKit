@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sparql xmlns="http://www.w3.org/2005/sparql-results#" xmlns:its="http://www.w3.org/2005/11/its">
+  <head>
+    <variable name="triple"/>
+    <variable name="label"/>
+  </head>
+  <results>
+    <result>
+      <binding name="triple">
+        <triple>
+          <subject>
+            <uri>http://example.org/alice</uri>
+          </subject>
+          <predicate>
+            <uri>http://example.org/name</uri>
+          </predicate>
+          <object>
+            <literal datatype="http://www.w3.org/2001/XMLSchema#string">Alice</literal>
+          </object>
+        </triple>
+      </binding>
+      <binding name="label">
+        <literal xml:lang="fr" its:dir="ltr">chat</literal>
+      </binding>
+    </result>
+  </results>
+</sparql>

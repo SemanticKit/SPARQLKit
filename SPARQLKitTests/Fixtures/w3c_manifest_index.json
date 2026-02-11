@@ -1,0 +1,7 @@
+{
+  "name": "SPARQLKit aggregated W3C subset",
+  "manifests": [
+    "w3c_subset_manifest_include_root.ttl",
+    "w3c_subset_manifest.ttl"
+  ]
+}

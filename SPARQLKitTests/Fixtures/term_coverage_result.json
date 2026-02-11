@@ -1,0 +1,19 @@
+{
+  "head": {
+    "vars": ["u", "b", "lang", "typed"]
+  },
+  "results": {
+    "bindings": [
+      {
+        "u": { "type": "uri", "value": "http://example.org/resource" },
+        "b": { "type": "bnode", "value": "node1" },
+        "lang": { "type": "literal", "xml:lang": "en", "value": "hello" },
+        "typed": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "42"
+        }
+      }
+    ]
+  }
+}

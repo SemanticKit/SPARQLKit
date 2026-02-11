@@ -1,0 +1,33 @@
+{
+  "head": {
+    "vars": ["name", "count"]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": { "type": "literal", "value": "Alice" },
+        "count": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "3"
+        }
+      },
+      {
+        "name": { "type": "literal", "value": "Bob" },
+        "count": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      },
+      {
+        "name": { "type": "literal", "value": "Charlie" },
+        "count": {
+          "type": "typed-literal",
+          "datatype": "http://www.w3.org/2001/XMLSchema#integer",
+          "value": "1"
+        }
+      }
+    ]
+  }
+}

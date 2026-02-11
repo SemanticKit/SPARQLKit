@@ -1,0 +1,2 @@
+?triple	?label
+<<( <http://example.org/alice> <http://example.org/name> "Alice"^^<http://www.w3.org/2001/XMLSchema#string> )>>	"chat"@fr--ltr

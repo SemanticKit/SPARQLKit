@@ -1,0 +1,16 @@
+{
+  "head": {
+    "vars": ["name"]
+  },
+  "results": {
+    "bindings": [
+      {
+        "name": {
+          "type": "literal",
+          "value": "Alice"
+        }
+      }
+    ]
+  },
+  "version": "1.2"
+}

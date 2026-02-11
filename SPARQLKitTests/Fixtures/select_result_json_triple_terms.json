@@ -1,0 +1,29 @@
+{
+  "head": {
+    "vars": ["triple", "label"]
+  },
+  "results": {
+    "bindings": [
+      {
+        "triple": {
+          "type": "triple",
+          "value": {
+            "subject": { "type": "uri", "value": "http://example.org/alice" },
+            "predicate": { "type": "uri", "value": "http://example.org/name" },
+            "object": {
+              "type": "literal",
+              "value": "Alice",
+              "datatype": "http://www.w3.org/2001/XMLSchema#string"
+            }
+          }
+        },
+        "label": {
+          "type": "literal",
+          "value": "chat",
+          "xml:lang": "fr",
+          "its:dir": "ltr"
+        }
+      }
+    ]
+  }
+}

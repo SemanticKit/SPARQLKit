@@ -1,0 +1,2 @@
+?iri	?bnode	?lang	?typed	?plain
+<http://example.org/r>	_:b1	"bonjour"@fr	"42"^^<http://www.w3.org/2001/XMLSchema#integer>	"text"

@@ -1,0 +1,11 @@
+{
+  "head": { "vars": ["x"] },
+  "boolean": false,
+  "results": {
+    "bindings": [
+      {
+        "x": { "type": "literal", "value": "bad" }
+      }
+    ]
+  }
+}
