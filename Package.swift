@@ -1,4 +1,4 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.3
 
 import PackageDescription
 
@@ -22,20 +22,18 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(path: "../SemanticKit"),
-        .package(path: "../RDFKit")
+        .package(url: "https://github.com/SemanticKit/RDFKit.git", branch: "main"),
+        .package(url: "https://github.com/SemanticKit/SemanticKit.git", branch: "main"),
     ],
     targets: [
         .target(
             name: "SPARQLKit",
             dependencies: ["SemanticKit", "RDFKit"],
-            path: "SPARQLKit",
             swiftSettings: strictSettings
         ),
         .testTarget(
             name: "SPARQLKitTests",
             dependencies: ["SPARQLKit"],
-            path: "SPARQLKitTests",
             resources: [.process("Fixtures")],
             swiftSettings: strictSettings
         ),
