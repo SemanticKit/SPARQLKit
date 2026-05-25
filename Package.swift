@@ -16,7 +16,6 @@ let package = Package(
     products: [
         .library(
             name: "SPARQLKit",
-            type: .dynamic,
             targets: ["SPARQLKit"]
         )
     ],
