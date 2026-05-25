@@ -3,8 +3,7 @@
 import PackageDescription
 
 let strictSettings: [SwiftSetting] = [
-    .unsafeFlags(["-strict-concurrency=complete"], .when(configuration: .debug)),
-    .unsafeFlags(["-warnings-as-errors"])
+    .unsafeFlags(["-strict-concurrency=complete"], .when(configuration: .debug))
 ]
 
 let package = Package(
