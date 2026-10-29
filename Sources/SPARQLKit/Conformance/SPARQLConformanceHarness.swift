@@ -1,4 +1,8 @@
 import Foundation
+import IRIKit
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public struct SPARQLConformanceSuite: Codable, Sendable {
     public let name: String
@@ -412,7 +416,7 @@ public struct SPARQLConformanceRunner {
         switch template {
         case .basicSelect:
             let query = try SPARQLSelectQuery(
-                prefixes: ["ex": IRI("http://example.org/")],
+                prefixes: ["ex": IRI(validating: "http://example.org/")],
                 variables: [Variable(rawValue: "s"), Variable(rawValue: "o")],
                 wherePatterns: ["?s ex:p ?o ."],
                 limit: 5

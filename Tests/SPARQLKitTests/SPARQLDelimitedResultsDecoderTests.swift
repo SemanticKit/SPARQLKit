@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import IRIKit
+import RDFCore
 @testable import SPARQLKit
 
 @Test
@@ -14,8 +16,8 @@ func csvDecoderParsesBindings() throws {
     #expect(result.bindings.count == 3)
 
     let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice")
-    let expectedCount = try RDFTerm.literal("3")
+    let expectedName = try ObjectTerm(literal: "Alice")
+    let expectedCount = try ObjectTerm(literal: "3")
     #expect(first[Variable(rawValue: "name")] == expectedName)
     #expect(first[Variable(rawValue: "count")] == expectedCount)
 }
@@ -32,8 +34,8 @@ func tsvDecoderParsesBindings() throws {
     #expect(result.bindings.count == 3)
 
     let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice")
-    let expectedCount = try RDFTerm.literal("3")
+    let expectedName = try ObjectTerm(literal: "Alice")
+    let expectedCount = try ObjectTerm(literal: "3")
     #expect(first[Variable(rawValue: "name")] == expectedName)
     #expect(first[Variable(rawValue: "count")] == expectedCount)
 }
@@ -49,8 +51,8 @@ func csvDecoderHandlesQuotedFieldsAndUnboundCells() throws {
     #expect(result.bindings.count == 2)
 
     let first = try #require(result.bindings.first)
-    let expectedQuotedName = try RDFTerm.literal("Alice, A.")
-    let expectedQuotedNote = try RDFTerm.literal("He said \"hi\"")
+    let expectedQuotedName = try ObjectTerm(literal: "Alice, A.")
+    let expectedQuotedNote = try ObjectTerm(literal: "He said \"hi\"")
     #expect(first[Variable(rawValue: "name")] == expectedQuotedName)
     #expect(first[Variable(rawValue: "note")] == expectedQuotedNote)
 
@@ -68,11 +70,11 @@ func tsvDecoderParsesTypedLanguageAndNodeTerms() throws {
     let result = try decoder.decodeTSV(data)
 
     let row = try #require(result.bindings.first)
-    let expectedIRI = try RDFTerm.iri("http://example.org/r")
-    let expectedBNode = try RDFTerm.blankNode("b1")
-    let expectedLang = try RDFTerm.literal("bonjour", language: "fr")
-    let expectedTyped = try RDFTerm.literal("42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
-    let expectedPlain = try RDFTerm.literal("text")
+    let expectedIRI = try ObjectTerm(iri: "http://example.org/r")
+    let expectedBNode = try ObjectTerm(blankNodeLabel: "b1")
+    let expectedLang = try ObjectTerm(literal: "bonjour", language: "fr")
+    let expectedTyped = try ObjectTerm(literal: "42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
+    let expectedPlain = try ObjectTerm(literal: "text")
     #expect(row[Variable(rawValue: "iri")] == expectedIRI)
     #expect(row[Variable(rawValue: "bnode")] == expectedBNode)
     #expect(row[Variable(rawValue: "lang")] == expectedLang)
@@ -89,14 +91,14 @@ func tsvDecoderParsesTripleTermsAndDirectionalLiterals() throws {
     let result = try decoder.decodeTSV(data)
     let row = try #require(result.bindings.first)
 
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
+    let expectedTriple = ObjectTerm.tripleTerm(
+        Graph.Element(
+            subject: .iri(try IRI(validating: "http://example.org/alice")),
+            predicate: try IRI(validating: "http://example.org/name"),
+            object: try ObjectTerm(literal: "Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
         )
     )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
+    let expectedDirectionalLiteral = try ObjectTerm(literal: "chat", language: "fr", direction: .ltr)
 
     #expect(row[Variable(rawValue: "triple")] == expectedTriple)
     #expect(row[Variable(rawValue: "label")] == expectedDirectionalLiteral)
@@ -111,17 +113,17 @@ func csvDecoderNormalizesTermSyntaxIncludingTripleTerms() throws {
     let result = try decoder.decodeCSV(data, normalizeTerms: true)
     let row = try #require(result.bindings.first)
 
-    let expectedIRI = try RDFTerm.iri("http://example.org/r")
-    let expectedBNode = try RDFTerm.blankNode("b1")
-    let expectedTyped = try RDFTerm.literal("42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
+    let expectedIRI = try ObjectTerm(iri: "http://example.org/r")
+    let expectedBNode = try ObjectTerm(blankNodeLabel: "b1")
+    let expectedTyped = try ObjectTerm(literal: "42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
+    let expectedTriple = ObjectTerm.tripleTerm(
+        Graph.Element(
+            subject: .iri(try IRI(validating: "http://example.org/alice")),
+            predicate: try IRI(validating: "http://example.org/name"),
+            object: try ObjectTerm(literal: "Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
         )
     )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
+    let expectedDirectionalLiteral = try ObjectTerm(literal: "chat", language: "fr", direction: .ltr)
 
     #expect(row[Variable(rawValue: "iri")] == expectedIRI)
     #expect(row[Variable(rawValue: "bnode")] == expectedBNode)
@@ -141,6 +143,6 @@ func tsvDecoderPreservesUnicodeLanguageLiteralContent() throws {
     let decoder = SPARQLDelimitedResultsDecoder()
     let result = try decoder.decodeTSV(data)
     let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.literal("γειά σου", language: "el")
+    let expected = try ObjectTerm(literal: "γειά σου", language: "el")
     #expect(first[Variable(rawValue: "label")] == expected)
 }

@@ -2,24 +2,6 @@
   "originHash" : "ea070b43a5ab961b64017c9f059ae5bc539b13bcb5c73c20c22fb0aafb7ba475",
   "pins" : [
     {
-      "identity" : "rdfkit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SemanticKit/RDFKit.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "575ecf51cbccfbb2c3180f4ffb4d81e5279ef6d6"
-      }
-    },
-    {
-      "identity" : "semantickit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SemanticKit/SemanticKit.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "0494322e0ce47336b8749d7b325a31891cd0cc1e"
-      }
-    },
-    {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-syntax.git",

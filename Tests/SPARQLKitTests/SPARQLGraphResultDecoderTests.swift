@@ -9,7 +9,7 @@ func graphResultDecoderParsesTurtleGraph() throws {
 
     let graph = try SPARQLGraphResultDecoder().decodeTurtle(data)
 
-    #expect(graph.triples.count == 2)
+    #expect(graph.count == 2)
 }
 
 @Test

@@ -1,5 +1,10 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
+import IRIKit
+import RDFCore
 @testable import SPARQLKit
 
 @Test
@@ -163,8 +168,8 @@ func makeUpdateRequestPercentEncodesPotentialParameterInjectionContent() throws 
 @Test
 func queryRequestOptionsCanBeConstructedFromDatasetAbstraction() throws {
     let dataset = SPARQLDataset(
-        defaultGraphs: [try IRI("https://example.org/graphs/default")],
-        namedGraphs: [try IRI("https://example.org/graphs/named")]
+        defaultGraphs: [try IRI(validating: "https://example.org/graphs/default")],
+        namedGraphs: [try IRI(validating: "https://example.org/graphs/named")]
     )
 
     let client = SPARQLEndpointClient(
@@ -186,8 +191,8 @@ func queryRequestOptionsCanBeConstructedFromDatasetAbstraction() throws {
 @Test
 func updateRequestOptionsCanBeConstructedFromDatasetAbstraction() async throws {
     let dataset = SPARQLDataset(
-        usingGraphs: [try IRI("https://example.org/u-default")],
-        usingNamedGraphs: [try IRI("https://example.org/u-named")]
+        usingGraphs: [try IRI(validating: "https://example.org/u-default")],
+        usingNamedGraphs: [try IRI(validating: "https://example.org/u-named")]
     )
     let session = MockSession(statusCode: 200, body: "")
     let client = SPARQLEndpointClient(
@@ -212,8 +217,8 @@ func updateRequestOptionsCanBeConstructedFromDatasetAbstraction() async throws {
 @Test
 func executeSelectSupportsDatasetAbstractionDirectly() async throws {
     let dataset = SPARQLDataset(
-        defaultGraphs: [try IRI("https://example.org/graphs/default")],
-        namedGraphs: [try IRI("https://example.org/graphs/named")]
+        defaultGraphs: [try IRI(validating: "https://example.org/graphs/default")],
+        namedGraphs: [try IRI(validating: "https://example.org/graphs/named")]
     )
     let payload = """
     {"head":{"vars":["s"]},"results":{"bindings":[{"s":{"type":"uri","value":"http://example.org/s"}}]}}
@@ -240,8 +245,8 @@ func executeSelectSupportsDatasetAbstractionDirectly() async throws {
 @Test
 func executeUpdateSupportsDatasetAbstractionDirectly() async throws {
     let dataset = SPARQLDataset(
-        usingGraphs: [try IRI("https://example.org/u-default")],
-        usingNamedGraphs: [try IRI("https://example.org/u-named")]
+        usingGraphs: [try IRI(validating: "https://example.org/u-default")],
+        usingNamedGraphs: [try IRI(validating: "https://example.org/u-named")]
     )
     let session = MockSession(statusCode: 200, body: "")
     let client = SPARQLEndpointClient(
@@ -582,7 +587,7 @@ func executeSelectDecodesBindingsResult() async throws {
     let result = try await client.executeSelect(query)
     #expect(result.bindings.count == 1)
     let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.iri("http://example.org/s")
+    let expected = try ObjectTerm(iri: "http://example.org/s")
     #expect(first[Variable(rawValue: "s")] == expected)
 }
 

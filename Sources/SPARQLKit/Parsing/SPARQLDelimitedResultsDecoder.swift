@@ -1,5 +1,5 @@
 import Foundation
-import SemanticKit
+import RDFCore
 
 public struct SPARQLDelimitedResultsDecoder: Sendable {
     public init() {}
@@ -53,7 +53,7 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
                 } else if normalizeCSVTerms {
                     binding[variable] = try decodeTerm(value, tsvMode: false)
                 } else {
-                    binding[variable] = try .literal(value)
+                    binding[variable] = try ObjectTerm(literal: value)
                 }
             }
             bindings.append(binding)
@@ -62,9 +62,9 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
         return SPARQLResultSet(variables: variables, bindings: bindings)
     }
 
-    private func decodeTerm(_ token: String, tsvMode: Bool) throws -> RDFTerm {
+    private func decodeTerm(_ token: String, tsvMode: Bool) throws -> ObjectTerm {
         if token == "UNDEF" {
-            return try .literal(token)
+            return try ObjectTerm(literal: token)
         }
 
         if token.hasPrefix("<<("), token.hasSuffix(")>>") {
@@ -72,10 +72,10 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
         }
 
         if token.hasPrefix("<"), token.hasSuffix(">") {
-            return try .iri(String(token.dropFirst().dropLast()))
+            return try ObjectTerm(iri: String(token.dropFirst().dropLast()))
         }
         if token.hasPrefix("_:") {
-            return try .blankNode(String(token.dropFirst(2)))
+            return try ObjectTerm(blankNodeLabel: String(token.dropFirst(2)))
         }
         if token.hasPrefix("\"") {
             if let languageRange = token.range(of: "\"@", options: .backwards),
@@ -85,8 +85,8 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
                 let lexical = String(token[token.index(after: token.startIndex) ..< languageRange.lowerBound])
                 let languageToken = String(token[languageRange.upperBound...])
                 let (language, direction) = splitLanguageAndDirection(languageToken)
-                return try .literal(
-                    tsvMode ? unescapeTSVLiteral(lexical) : lexical,
+                return try ObjectTerm(
+                    literal: tsvMode ? unescapeTSVLiteral(lexical) : lexical,
                     language: language,
                     direction: direction
                 )
@@ -101,42 +101,30 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
                 let datatypeEnd = token.index(before: token.endIndex)
                 let datatype = String(token[datatypeStart ..< datatypeEnd])
                 let normalizedLexical = tsvMode ? unescapeTSVLiteral(lexical) : lexical
-                return try .literal(normalizedLexical, datatype: datatype)
+                return try ObjectTerm(literal: normalizedLexical, datatype: datatype)
             }
 
             if token.hasSuffix("\""), token.count >= 2 {
                 let lexical = String(token.dropFirst().dropLast())
                 let normalizedLexical = tsvMode ? unescapeTSVLiteral(lexical) : lexical
-                return try .literal(normalizedLexical)
+                return try ObjectTerm(literal: normalizedLexical)
             }
         }
-        return try .literal(token)
+        return try ObjectTerm(literal: token)
     }
 
-    private func decodeTripleTerm(_ token: String, tsvMode: Bool) throws -> RDFTerm {
+    private func decodeTripleTerm(_ token: String, tsvMode: Bool) throws -> ObjectTerm {
         let core = String(token.dropFirst(3).dropLast(3)).trimmingCharacters(in: .whitespaces)
         let components = try splitTripleComponents(core)
         guard components.count == 3 else {
             throw SPARQLError.decodingFailure("Invalid TSV triple term payload: expected 3 components.")
         }
 
-        let subjectTerm = try decodeTerm(components[0], tsvMode: tsvMode)
-        let predicateTerm = try decodeTerm(components[1], tsvMode: tsvMode)
-        let objectTerm = try decodeTerm(components[2], tsvMode: tsvMode)
-
-        guard let subjectNode = subjectTerm.node as? any SemanticKit.RDFSubject else {
-            throw SPARQLError.decodingFailure("TSV triple term subject must be IRI or blank node.")
-        }
-        guard let predicateIRI = predicateTerm.node as? IRI else {
-            throw SPARQLError.decodingFailure("TSV triple term predicate must be an IRI.")
-        }
-
-        let triple = RDFTripleTerm(
-            subject: try RDFSubject(subjectNode),
-            predicate: predicateIRI,
-            object: RDFTerm(objectTerm.node)
+        return try ObjectTerm(
+            subject: decodeTerm(components[0], tsvMode: tsvMode),
+            predicate: decodeTerm(components[1], tsvMode: tsvMode),
+            object: decodeTerm(components[2], tsvMode: tsvMode)
         )
-        return RDFTerm(triple)
     }
 
     private func splitTripleComponents(_ raw: String) throws -> [String] {
@@ -219,11 +207,11 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
             .replacingOccurrences(of: "\\r", with: "\r")
     }
 
-    private func splitLanguageAndDirection(_ token: String) -> (String, TextDirection?) {
+    private func splitLanguageAndDirection(_ token: String) -> (String, BaseDirection?) {
         let pieces = token.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false)
         if pieces.count == 3, pieces[1].isEmpty {
             let language = String(pieces[0])
-            let direction = TextDirection(rawValue: String(pieces[2]).lowercased())
+            let direction = BaseDirection(rawValue: String(pieces[2]).lowercased())
             return (language, direction)
         }
         return (token, nil)

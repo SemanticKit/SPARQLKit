@@ -1,4 +1,5 @@
 import Foundation
+import IRIKit
 
 public protocol SPARQLQueryRenderable: Sendable {
     func render() -> String
@@ -16,7 +17,7 @@ public indirect enum SPARQLPropertyPath: Hashable, Sendable {
     public func render() -> String {
         switch self {
         case let .iri(iri):
-            return "<\(iri.string)>"
+            return "<\(iri.rawValue)>"
         case let .inverse(path):
             return "^\(path.renderWrappedForUnary())"
         case let .sequence(parts):
@@ -82,7 +83,7 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
         case let .literal(value):
             return value
         case let .iri(iri):
-            return "<\(iri.string)>"
+            return "<\(iri.rawValue)>"
         case let .unary(op, expression):
             return "\(op.rawValue)(\(expression.render()))"
         case let .binary(lhs, op, rhs):
@@ -200,7 +201,7 @@ public struct SPARQLGraphPatternClause: Hashable, Sendable {
     }
 
     public func render() -> String {
-        var lines: [String] = ["GRAPH <\(graphIRI.string)> {"]
+        var lines: [String] = ["GRAPH <\(graphIRI.rawValue)> {"]
         for pattern in patterns {
             lines.append("  \(pattern)")
         }
@@ -288,7 +289,7 @@ public struct SPARQLSelectQuery: Hashable, Sendable, SPARQLQueryRenderable {
         var lines: [String] = []
         for key in prefixes.keys.sorted() {
             if let iri = prefixes[key] {
-                lines.append("PREFIX \(key): <\(iri.string)>")
+                lines.append("PREFIX \(key): <\(iri.rawValue)>")
             }
         }
 
@@ -302,10 +303,10 @@ public struct SPARQLSelectQuery: Hashable, Sendable, SPARQLQueryRenderable {
         lines.append(selectTokens.joined(separator: " "))
 
         for graph in fromGraphs {
-            lines.append("FROM <\(graph.string)>")
+            lines.append("FROM <\(graph.rawValue)>")
         }
         for graph in fromNamedGraphs {
-            lines.append("FROM NAMED <\(graph.string)>")
+            lines.append("FROM NAMED <\(graph.rawValue)>")
         }
 
         lines.append("WHERE {")
@@ -506,7 +507,7 @@ public struct SPARQLAskQuery: Hashable, Sendable, SPARQLQueryRenderable {
         var lines: [String] = []
         for key in prefixes.keys.sorted() {
             if let iri = prefixes[key] {
-                lines.append("PREFIX \(key): <\(iri.string)>")
+                lines.append("PREFIX \(key): <\(iri.rawValue)>")
             }
         }
         lines.append("ASK")
@@ -541,7 +542,7 @@ public struct SPARQLConstructQuery: Hashable, Sendable, SPARQLQueryRenderable {
         var lines: [String] = []
         for key in prefixes.keys.sorted() {
             if let iri = prefixes[key] {
-                lines.append("PREFIX \(key): <\(iri.string)>")
+                lines.append("PREFIX \(key): <\(iri.rawValue)>")
             }
         }
         lines.append("CONSTRUCT {")
@@ -586,12 +587,12 @@ public struct SPARQLDescribeQuery: Hashable, Sendable, SPARQLQueryRenderable {
         var lines: [String] = []
         for key in prefixes.keys.sorted() {
             if let iri = prefixes[key] {
-                lines.append("PREFIX \(key): <\(iri.string)>")
+                lines.append("PREFIX \(key): <\(iri.rawValue)>")
             }
         }
 
         let described = (
-            variables.map(\.sparql) + iris.map { "<\($0.string)>" }
+            variables.map(\.sparql) + iris.map { "<\($0.rawValue)>" }
         ).joined(separator: " ")
 
         lines.append("DESCRIBE \(described.isEmpty ? "*" : described)")

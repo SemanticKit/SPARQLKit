@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import IRIKit
+import RDFCore
 @testable import SPARQLKit
 
 @Test
@@ -14,8 +16,8 @@ func xmlResultDecoderParsesBindings() throws {
     #expect(result.bindings.count == 2)
 
     let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice", language: "en")
-    let expectedCount = try RDFTerm.literal("3", datatype: "http://www.w3.org/2001/XMLSchema#integer")
+    let expectedName = try ObjectTerm(literal: "Alice", language: "en")
+    let expectedCount = try ObjectTerm(literal: "3", datatype: "http://www.w3.org/2001/XMLSchema#integer")
     #expect(first[Variable(rawValue: "name")] == expectedName)
     #expect(first[Variable(rawValue: "count")] == expectedCount)
 }
@@ -78,14 +80,14 @@ func xmlResultDecoderParsesTripleTermsAndDirectionalLiterals() throws {
     let result = try decoder.decode(data)
     let row = try #require(result.bindings.first)
 
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
+    let expectedTriple = ObjectTerm.tripleTerm(
+        Graph.Element(
+            subject: .iri(try IRI(validating: "http://example.org/alice")),
+            predicate: try IRI(validating: "http://example.org/name"),
+            object: try ObjectTerm(literal: "Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
         )
     )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
+    let expectedDirectionalLiteral = try ObjectTerm(literal: "chat", language: "fr", direction: .ltr)
 
     #expect(row[Variable(rawValue: "triple")] == expectedTriple)
     #expect(row[Variable(rawValue: "label")] == expectedDirectionalLiteral)
@@ -109,6 +111,6 @@ func xmlResultDecoderPreservesUnicodeLanguageLiteralContent() throws {
     let decoder = SPARQLXMLResultDecoder()
     let result = try decoder.decode(data)
     let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.literal("مرحبا", language: "ar")
+    let expected = try ObjectTerm(literal: "مرحبا", language: "ar")
     #expect(first[Variable(rawValue: "label")] == expected)
 }

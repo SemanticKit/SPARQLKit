@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import IRIKit
+import RDFCore
 @testable import SPARQLKit
 
 @Test
@@ -87,8 +89,8 @@ func multiOperationUpdateSequenceWhenConfigured() async throws {
     let result = try SPARQLJSONResultDecoder().decode(data)
 
     let values = result.bindings.compactMap { $0[Variable(rawValue: "o")] }
-    let expectedFinal = try RDFTerm.iri(objectB)
-    let unexpectedPrior = try RDFTerm.iri(objectA)
+    let expectedFinal = try ObjectTerm(iri: objectB)
+    let unexpectedPrior = try ObjectTerm(iri: objectA)
 
     #expect(values.contains(expectedFinal))
     #expect(!values.contains(unexpectedPrior))
@@ -202,7 +204,7 @@ func federatedQueryRoundTripWhenConfigured() async throws {
     }
 
     if strictAssertions, let propagatedSubjectIRI {
-        let expected = try RDFTerm.iri(propagatedSubjectIRI)
+        let expected = try ObjectTerm(iri: propagatedSubjectIRI)
         let values = result.bindings.compactMap { $0[Variable(rawValue: "s")] }
         #expect(values.contains(expected))
     }

@@ -1,4 +1,5 @@
 import Foundation
+import IRIKit
 
 public struct SPARQLFederatedBindingAnalysis: Hashable, Sendable {
     public let localVariables: Set<Variable>
@@ -67,7 +68,7 @@ public struct SPARQLFederatedSelectQuery: Hashable, Sendable, SPARQLQueryRendera
         var lines: [String] = []
         for key in prefixes.keys.sorted() {
             if let iri = prefixes[key] {
-                lines.append("PREFIX \(key): <\(iri.string)>")
+                lines.append("PREFIX \(key): <\(iri.rawValue)>")
             }
         }
 

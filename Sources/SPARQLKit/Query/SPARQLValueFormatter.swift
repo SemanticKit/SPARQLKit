@@ -1,9 +1,10 @@
 import Foundation
+import IRIKit
 
 public enum SPARQLValueFormatter {
     public static func iri(_ value: String) throws -> String {
-        let iri = try IRI(value)
-        return "<\(iri.string)>"
+        let iri = try IRI(validating: value)
+        return "<\(iri.rawValue)>"
     }
 
     public static func literal(
@@ -16,8 +17,8 @@ public enum SPARQLValueFormatter {
             return "\"\(escaped)\"@\(language)"
         }
         if let datatype {
-            let datatypeIRI = try IRI(datatype)
-            return "\"\(escaped)\"^^<\(datatypeIRI.string)>"
+            let datatypeIRI = try IRI(validating: datatype)
+            return "\"\(escaped)\"^^<\(datatypeIRI.rawValue)>"
         }
         return "\"\(escaped)\""
     }

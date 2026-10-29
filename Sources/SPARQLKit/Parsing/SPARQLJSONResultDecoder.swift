@@ -1,5 +1,6 @@
 import Foundation
-import SemanticKit
+import IRIKit
+import RDFCore
 
 public enum SPARQLQueryResult: Hashable, Sendable {
     case bindings(SPARQLResultSet)
@@ -128,48 +129,34 @@ private final class JSONBindingValue: Decodable {
         case direction = "its:dir"
     }
 
-    var asTerm: RDFTerm {
+    var asTerm: ObjectTerm {
         get throws {
             switch type {
             case "uri":
                 guard case let .string(value) = value else {
                     throw SPARQLError.decodingFailure("IRI term value must be a string.")
                 }
-                return try .iri(value)
+                return try ObjectTerm(iri: value)
             case "bnode":
                 guard case let .string(value) = value else {
                     throw SPARQLError.decodingFailure("Blank node value must be a string.")
                 }
-                return try .blankNode(value)
+                return try ObjectTerm(blankNodeLabel: value)
             case "triple":
                 guard case let .triple(tripleValue) = value else {
                     throw SPARQLError.decodingFailure("Triple term value must be an object.")
                 }
-                let subjectTerm = try tripleValue.subject.asTerm
-                let predicateTerm = try tripleValue.predicate.asTerm
-                let objectTerm = try tripleValue.object.asTerm
-
-                guard let subjectNode = subjectTerm.node as? any SemanticKit.RDFSubject else {
-                    throw SPARQLError.decodingFailure("Triple subject must be IRI or blank node.")
-                }
-                let predicateIRI: IRI
-                if let iri = predicateTerm.node as? IRI {
-                    predicateIRI = iri
-                } else {
-                    throw SPARQLError.decodingFailure("Triple predicate must be an IRI.")
-                }
-                let triple = RDFTripleTerm(
-                    subject: try RDFSubject(subjectNode),
-                    predicate: predicateIRI,
-                    object: RDFTerm(objectTerm.node)
+                return try ObjectTerm(
+                    subject: tripleValue.subject.asTerm,
+                    predicate: tripleValue.predicate.asTerm,
+                    object: tripleValue.object.asTerm
                 )
-                return RDFTerm(triple)
             default:
                 guard case let .string(value) = value else {
                     throw SPARQLError.decodingFailure("Literal term value must be a string.")
                 }
-                let textDirection = direction.flatMap { TextDirection(rawValue: $0.lowercased()) }
-                return try .literal(value, datatype: datatype, language: language, direction: textDirection)
+                let baseDirection = direction.flatMap { BaseDirection(rawValue: $0.lowercased()) }
+                return try ObjectTerm(literal: value, datatype: datatype, language: language, direction: baseDirection)
             }
         }
     }

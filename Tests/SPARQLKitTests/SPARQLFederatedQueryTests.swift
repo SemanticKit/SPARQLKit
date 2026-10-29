@@ -1,4 +1,9 @@
 import Testing
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+import IRIKit
+import RDFCore
 @testable import SPARQLKit
 
 @Test
@@ -18,7 +23,7 @@ func serviceClauseRendersWithEndpointAndPatterns() {
 @Test
 func federatedSelectRendersLocalAndServicePatterns() throws {
     let query = SPARQLFederatedSelectQuery(
-        prefixes: ["foaf": try IRI("http://xmlns.com/foaf/0.1/")],
+        prefixes: ["foaf": try IRI(validating: "http://xmlns.com/foaf/0.1/")],
         variables: [Variable(rawValue: "name")],
         localPatterns: ["?person foaf:knows ?friend ."],
         serviceClauses: [
@@ -109,7 +114,7 @@ func federatedSelectExecutionDecodesBindingsPayload() async throws {
     let result = try await client.executeFederatedSelect(query)
     #expect(result.bindings.count == 1)
     let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.iri("http://example.org/s")
+    let expected = try ObjectTerm(iri: "http://example.org/s")
     #expect(first[Variable(rawValue: "s")] == expected)
 }
 

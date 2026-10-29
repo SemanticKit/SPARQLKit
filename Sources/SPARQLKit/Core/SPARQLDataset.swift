@@ -1,4 +1,5 @@
 import Foundation
+import IRIKit
 
 public struct SPARQLDataset: Hashable, Sendable {
     public let defaultGraphs: [IRI]
@@ -19,18 +20,18 @@ public struct SPARQLDataset: Hashable, Sendable {
     }
 
     public var defaultGraphURIs: [String] {
-        defaultGraphs.map(\.string)
+        defaultGraphs.map(\.rawValue)
     }
 
     public var namedGraphURIs: [String] {
-        namedGraphs.map(\.string)
+        namedGraphs.map(\.rawValue)
     }
 
     public var usingGraphURIs: [String] {
-        usingGraphs.map(\.string)
+        usingGraphs.map(\.rawValue)
     }
 
     public var usingNamedGraphURIs: [String] {
-        usingNamedGraphs.map(\.string)
+        usingNamedGraphs.map(\.rawValue)
     }
 }

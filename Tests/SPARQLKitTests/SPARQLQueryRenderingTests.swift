@@ -1,10 +1,12 @@
 import Testing
+import IRIKit
+import RDFCore
 @testable import SPARQLKit
 
 @Test
 func selectQueryRenderingIncludesExpectedSections() throws {
     let query = SPARQLSelectQuery(
-        prefixes: ["foaf": try IRI("http://xmlns.com/foaf/0.1/")],
+        prefixes: ["foaf": try IRI(validating: "http://xmlns.com/foaf/0.1/")],
         variables: [Variable(rawValue: "name"), Variable(rawValue: "count")],
         wherePatterns: [
             "?person foaf:name ?name .",
@@ -35,7 +37,7 @@ func selectQueryRenderingIncludesGraphPatternCompositionClauses() throws {
         minusBlocks: [["?s <http://example.org/blocked> ?x ."]],
         graphBlocks: [
             SPARQLGraphPatternClause(
-                graphIRI: try IRI("http://example.org/graph"),
+                graphIRI: try IRI(validating: "http://example.org/graph"),
                 patterns: ["?s <http://example.org/inGraph> ?g ."]
             )
         ],
@@ -67,8 +69,8 @@ func selectQueryRenderingIncludesModifiersAndDatasetClauses() throws {
             variables: [Variable(rawValue: "s"), Variable(rawValue: "o")],
             rows: [["<http://example.org/a>", "\"one\""], ["UNDEF", "\"two\""]]
         )],
-        fromGraphs: [try IRI("http://example.org/default")],
-        fromNamedGraphs: [try IRI("http://example.org/named")],
+        fromGraphs: [try IRI(validating: "http://example.org/default")],
+        fromNamedGraphs: [try IRI(validating: "http://example.org/named")],
         distinct: true,
         groupBy: [Variable(rawValue: "s")],
         having: ["(COUNT(?o) > 1)"],
@@ -121,8 +123,8 @@ func selectQueryRenderingIncludesSubqueryAndInlineValues() throws {
 
 @Test
 func selectQueryRenderingIncludesPropertyPathsAndExpressionOperators() throws {
-    let knows = SPARQLPropertyPath.iri(try IRI("http://example.org/knows"))
-    let colleague = SPARQLPropertyPath.iri(try IRI("http://example.org/colleague"))
+    let knows = SPARQLPropertyPath.iri(try IRI(validating: "http://example.org/knows"))
+    let colleague = SPARQLPropertyPath.iri(try IRI(validating: "http://example.org/colleague"))
     let relationPath = SPARQLPropertyPath.oneOrMore(
         .alternative([
             knows,
@@ -226,9 +228,9 @@ func subqueryScopeValidationDetectsNestedUnprojectedVariableLeakage() {
 
 @Test
 func propertyPathRenderingHandlesSequenceAlternativeAndClosureGrouping() throws {
-    let p1 = SPARQLPropertyPath.iri(try IRI("http://example.org/p1"))
-    let p2 = SPARQLPropertyPath.iri(try IRI("http://example.org/p2"))
-    let p3 = SPARQLPropertyPath.iri(try IRI("http://example.org/p3"))
+    let p1 = SPARQLPropertyPath.iri(try IRI(validating: "http://example.org/p1"))
+    let p2 = SPARQLPropertyPath.iri(try IRI(validating: "http://example.org/p2"))
+    let p3 = SPARQLPropertyPath.iri(try IRI(validating: "http://example.org/p3"))
     let path = SPARQLPropertyPath.sequence([
         .zeroOrMore(.alternative([p1, p2])),
         .zeroOrOne(.inverse(p3))
@@ -256,7 +258,7 @@ func expressionRenderingHandlesUnaryAndFunctionForms() throws {
 @Test
 func askQueryRenderingIncludesWhereClause() throws {
     let query = SPARQLAskQuery(
-        prefixes: ["foaf": try IRI("http://xmlns.com/foaf/0.1/")],
+        prefixes: ["foaf": try IRI(validating: "http://xmlns.com/foaf/0.1/")],
         wherePatterns: [
             "?person foaf:name ?name .",
             "FILTER(?name = \"Alice\")"
@@ -273,7 +275,7 @@ func askQueryRenderingIncludesWhereClause() throws {
 @Test
 func constructQueryRenderingIncludesTemplates() throws {
     let query = SPARQLConstructQuery(
-        prefixes: ["foaf": try IRI("http://xmlns.com/foaf/0.1/")],
+        prefixes: ["foaf": try IRI(validating: "http://xmlns.com/foaf/0.1/")],
         constructPatterns: ["?person foaf:label ?name ."],
         wherePatterns: ["?person foaf:name ?name ."],
         limit: 10
@@ -291,7 +293,7 @@ func constructQueryRenderingIncludesTemplates() throws {
 func describeQueryRenderingIncludesResourcesAndVariables() throws {
     let query = SPARQLDescribeQuery(
         variables: [Variable(rawValue: "person")],
-        iris: [try IRI("http://example.org/alice")],
+        iris: [try IRI(validating: "http://example.org/alice")],
         wherePatterns: ["?person ?p ?o ."],
         limit: 5
     )

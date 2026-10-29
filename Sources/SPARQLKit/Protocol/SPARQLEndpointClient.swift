@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public struct SPARQLQueryRequestOptions: Sendable, Hashable {
     public let defaultGraphURIs: [String]
@@ -85,7 +88,15 @@ public protocol URLSessioning: Sendable {
     func data(for request: URLRequest) async throws -> (Data, URLResponse)
 }
 
+#if canImport(FoundationNetworking)
+extension URLSession: URLSessioning {
+    public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await data(for: request, delegate: nil)
+    }
+}
+#else
 extension URLSession: URLSessioning {}
+#endif
 
 public enum SPARQLHTTPMethod: String, Sendable {
     case get = "GET"

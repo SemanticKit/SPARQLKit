@@ -1,6 +1,6 @@
 import Foundation
-import SemanticKit
-import RDFKit
+import RDFCore
+import RDFFormats
 
 public struct SPARQLGraphResultDecoder: Sendable {
     public init() {}
@@ -11,7 +11,7 @@ public struct SPARQLGraphResultDecoder: Sendable {
         }
 
         do {
-            return try Graph(turtle: turtle)
+            return try TurtleDecoder().decode(turtle)
         } catch {
             throw SPARQLError.decodingFailure("Failed to parse Turtle graph result: \(error)")
         }

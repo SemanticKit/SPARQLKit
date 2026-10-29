@@ -1,5 +1,8 @@
 import Foundation
-import SemanticKit
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
+import RDFCore
 
 public struct SPARQLXMLResultDecoder: Sendable {
     public init() {}
@@ -49,9 +52,9 @@ private struct XMLPartialTerm {
     var datatype: String?
     var language: String?
     var direction: String?
-    var subject: RDFTerm?
-    var predicate: RDFTerm?
-    var object: RDFTerm?
+    var subject: ObjectTerm?
+    var predicate: ObjectTerm?
+    var object: ObjectTerm?
 }
 
 private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
@@ -223,7 +226,7 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
         return .bindings(SPARQLResultSet(variables: variables, bindings: bindings))
     }
 
-    private func attachTerm(_ term: RDFTerm, parser _: XMLParser) throws {
+    private func attachTerm(_ term: ObjectTerm, parser _: XMLParser) throws {
         if var parent = termStack.last, parent.kind == .triple {
             guard let component = tripleComponentStack.last else {
                 throw SPARQLError.decodingFailure("Malformed triple term structure in XML results.")
@@ -251,26 +254,26 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
         currentBinding[Variable(rawValue: variableName)] = term
     }
 
-    private func finalizeLeafTerm(_ partial: XMLPartialTerm) throws -> RDFTerm {
+    private func finalizeLeafTerm(_ partial: XMLPartialTerm) throws -> ObjectTerm {
         switch partial.kind {
         case .uri:
-            return try .iri(partial.text)
+            return try ObjectTerm(iri: partial.text)
         case .bnode:
-            return try .blankNode(partial.text)
+            return try ObjectTerm(blankNodeLabel: partial.text)
         case .literal:
-            let textDirection = partial.direction.flatMap { TextDirection(rawValue: $0.lowercased()) }
-            return try .literal(
-                partial.text,
+            let baseDirection = partial.direction.flatMap { BaseDirection(rawValue: $0.lowercased()) }
+            return try ObjectTerm(
+                literal: partial.text,
                 datatype: partial.datatype,
                 language: partial.language,
-                direction: textDirection
+                direction: baseDirection
             )
         case .triple:
             throw SPARQLError.decodingFailure("Invalid XML parser state for leaf term finalization.")
         }
     }
 
-    private func finalizeTripleTerm(_ partial: XMLPartialTerm) throws -> RDFTerm {
+    private func finalizeTripleTerm(_ partial: XMLPartialTerm) throws -> ObjectTerm {
         guard let subjectTerm = partial.subject,
               let predicateTerm = partial.predicate,
               let objectTerm = partial.object
@@ -278,20 +281,7 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
             throw SPARQLError.decodingFailure("Incomplete triple term in XML results payload.")
         }
 
-        guard let subjectNode = subjectTerm.node as? any SemanticKit.RDFSubject else {
-            throw SPARQLError.decodingFailure("Triple subject must be IRI or blank node.")
-        }
-
-        guard let predicateIRI = predicateTerm.node as? IRI else {
-            throw SPARQLError.decodingFailure("Triple predicate must be an IRI.")
-        }
-
-        let triple = RDFTripleTerm(
-            subject: try RDFSubject(subjectNode),
-            predicate: predicateIRI,
-            object: RDFTerm(objectTerm.node)
-        )
-        return RDFTerm(triple)
+        return try ObjectTerm(subject: subjectTerm, predicate: predicateTerm, object: objectTerm)
     }
 
     private func fail(_ parser: XMLParser, _ message: String) {

@@ -1,5 +1,6 @@
 import Foundation
-import SemanticKit
+import RDFCore
+import RDFFormats
 import RDFKit
 
 public struct SPARQLServiceDescription: Hashable, Sendable {
@@ -70,7 +71,7 @@ public struct SPARQLServiceDescriptionParser: Sendable {
     public init() {}
 
     public func parseTurtle(_ turtle: String) throws -> SPARQLServiceDescription {
-        let graph = try Graph(turtle: turtle)
+        let graph = try TurtleDecoder().decode(turtle)
 
         var endpoints: Set<String> = []
         var supportedLanguages: Set<String> = []
@@ -78,8 +79,8 @@ public struct SPARQLServiceDescriptionParser: Sendable {
         var resultFormats: Set<String> = []
         var entailmentRegimes: Set<String> = []
 
-        for triple in graph.triples {
-            let predicate = triple.predicate.string
+        for triple in graph {
+            let predicate = triple.predicate.rawValue
             switch predicate {
             case "http://www.w3.org/ns/sparql-service-description#endpoint":
                 if let value = iriString(from: triple.object) {
@@ -115,7 +116,8 @@ public struct SPARQLServiceDescriptionParser: Sendable {
         )
     }
 
-    private func iriString(from object: RDFTerm) -> String? {
-        (object.node as? IRI)?.string
+    private func iriString(from object: ObjectTerm) -> String? {
+        guard case .iri(let iri) = object else { return nil }
+        return iri.rawValue
     }
 }

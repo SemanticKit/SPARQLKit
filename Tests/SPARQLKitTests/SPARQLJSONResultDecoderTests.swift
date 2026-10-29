@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import IRIKit
+import RDFCore
 @testable import SPARQLKit
 
 @Test
@@ -14,10 +16,10 @@ func jsonResultDecoderParsesBindings() throws {
     #expect(result.bindings.count == 3)
 
     let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice")
+    let expectedName = try ObjectTerm(literal: "Alice")
     #expect(first[Variable(rawValue: "name")] == expectedName)
-    let expectedCount = try RDFTerm.literal(
-        "3",
+    let expectedCount = try ObjectTerm(
+        literal: "3",
         datatype: "http://www.w3.org/2001/XMLSchema#integer"
     )
     #expect(first[Variable(rawValue: "count")] == expectedCount)
@@ -88,10 +90,10 @@ func jsonResultDecoderParsesAllTermKinds() throws {
     ])
 
     let first = try #require(result.bindings.first)
-    let expectedURI = try RDFTerm.iri("http://example.org/resource")
-    let expectedBlankNode = try RDFTerm.blankNode("node1")
-    let expectedLang = try RDFTerm.literal("hello", language: "en")
-    let expectedTyped = try RDFTerm.literal("42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
+    let expectedURI = try ObjectTerm(iri: "http://example.org/resource")
+    let expectedBlankNode = try ObjectTerm(blankNodeLabel: "node1")
+    let expectedLang = try ObjectTerm(literal: "hello", language: "en")
+    let expectedTyped = try ObjectTerm(literal: "42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
 
     #expect(first[Variable(rawValue: "u")] == expectedURI)
     #expect(first[Variable(rawValue: "b")] == expectedBlankNode)
@@ -108,14 +110,14 @@ func jsonResultDecoderParsesTripleTermsAndDirectionalLiterals() throws {
     let result = try decoder.decode(data)
     let row = try #require(result.bindings.first)
 
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
+    let expectedTriple = ObjectTerm.tripleTerm(
+        Graph.Element(
+            subject: .iri(try IRI(validating: "http://example.org/alice")),
+            predicate: try IRI(validating: "http://example.org/name"),
+            object: try ObjectTerm(literal: "Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
         )
     )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
+    let expectedDirectionalLiteral = try ObjectTerm(literal: "chat", language: "fr", direction: .ltr)
 
     #expect(row[Variable(rawValue: "triple")] == expectedTriple)
     #expect(row[Variable(rawValue: "label")] == expectedDirectionalLiteral)
@@ -192,6 +194,6 @@ func jsonResultDecoderPreservesUnicodeLanguageLiteralContent() throws {
     let decoder = SPARQLJSONResultDecoder()
     let result = try decoder.decode(data)
     let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.literal("こんにちは世界", language: "ja")
+    let expected = try ObjectTerm(literal: "こんにちは世界", language: "ja")
     #expect(first[Variable(rawValue: "label")] == expected)
 }
