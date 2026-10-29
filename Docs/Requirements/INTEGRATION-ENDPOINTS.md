@@ -36,6 +36,25 @@ export SPARQL_FEDERATED_ASSERT_BINDINGS="0"
 export SPARQL_FEDERATED_SUBJECT_IRI="<known-subject-iri>"
 ```
 
+With `SPARQL_FEDERATED_ASSERT_BINDINGS=1`, the subject must have a triple in
+the federated endpoint's default graph, because the test's `SERVICE` pattern
+matches the default graph.
+
+## Local endpoint
+
+[Oxigraph](https://github.com/oxigraph/oxigraph) serves every endpoint the
+suite needs. Start it, then seed the federated subject:
+
+```bash
+oxigraph serve --location /tmp/oxigraph --bind 127.0.0.1:7878
+curl -X POST http://127.0.0.1:7878/update --data-urlencode \
+  'update=INSERT DATA { <http://example.org/sparqlkit/integration/sequence> <http://example.org/p> "seed" }'
+```
+
+Point `SPARQL_ENDPOINT_URL` and `SPARQL_FEDERATED_ENDPOINT_URL` at
+`http://127.0.0.1:7878/query`, `SPARQL_UPDATE_ENDPOINT_URL` at `/update` and
+`SPARQL_GRAPH_STORE_URL` at `/store`.
+
 ## Run command
 
 ```bash

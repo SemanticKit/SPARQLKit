@@ -1,20 +1,31 @@
 import Foundation
-import SemanticKit
-import RDFKit
+import RDFCore
 
-public struct SPARQLServiceDescription: Hashable, Sendable {
-    public let endpoints: Set<String>
-    public let supportedLanguages: Set<String>
-    public let features: Set<String>
-    public let resultFormats: Set<String>
-    public let entailmentRegimes: Set<String>
+/// What a SPARQL endpoint says it implements, read from its service
+/// description (SPARQL 1.2 Service Description §3).
+///
+/// Languages, features, formats and entailment regimes are the generated
+/// individuals of ``ServiceDescription``, ``Formats`` and ``Entailment``; the
+/// endpoints are the URLs a client sends requests to.
+public struct SPARQLServiceDescription: Sendable {
+    /// `sd:endpoint`
+    public let endpoints: [URL]
+    /// `sd:supportedLanguage`
+    public let supportedLanguages: [any ServiceDescription.Language]
+    /// `sd:feature`
+    public let features: [any ServiceDescription.Feature]
+    /// `sd:resultFormat`
+    public let resultFormats: [any Formats.Format]
+    /// `sd:defaultEntailmentRegime` and the `sd:entailmentRegime` of the
+    /// described graphs.
+    public let entailmentRegimes: [any RDFCore.Resource]
 
     public init(
-        endpoints: Set<String> = [],
-        supportedLanguages: Set<String> = [],
-        features: Set<String> = [],
-        resultFormats: Set<String> = [],
-        entailmentRegimes: Set<String> = []
+        endpoints: [URL] = [],
+        supportedLanguages: [any ServiceDescription.Language] = [],
+        features: [any ServiceDescription.Feature] = [],
+        resultFormats: [any Formats.Format] = [],
+        entailmentRegimes: [any RDFCore.Resource] = []
     ) {
         self.endpoints = endpoints
         self.supportedLanguages = supportedLanguages
@@ -23,99 +34,31 @@ public struct SPARQLServiceDescription: Hashable, Sendable {
         self.entailmentRegimes = entailmentRegimes
     }
 
+    /// Whether the endpoint returns query results in this media type. A
+    /// description that names no result format restricts none.
     public func supports(_ accept: SPARQLAccept) -> Bool {
-        if resultFormats.isEmpty {
-            return true
-        }
-        let canonical = Self.canonicalResultFormats(resultFormats)
-        return canonical.contains(accept.rawValue)
+        resultFormats.isEmpty || resultFormats.contains { $0 === accept.format }
     }
 
+    /// Whether the endpoint returns graphs in this media type. A description
+    /// that names no result format restricts none.
     public func supports(_ accept: SPARQLGraphAccept) -> Bool {
-        if resultFormats.isEmpty {
-            return true
-        }
-        let canonical = Self.canonicalResultFormats(resultFormats)
-        return canonical.contains(accept.rawValue)
+        resultFormats.isEmpty || resultFormats.contains { $0 === accept.format }
     }
 
-    public func supportsEntailment(_ regimeIRI: String) -> Bool {
-        entailmentRegimes.isEmpty || entailmentRegimes.contains(regimeIRI)
+    /// Whether the endpoint uses this entailment regime. A description that
+    /// names no regime restricts none.
+    public func supportsEntailment(_ regime: any RDFCore.Resource) -> Bool {
+        entailmentRegimes.isEmpty || entailmentRegimes.contains { $0 === regime }
     }
 
-    private static func canonicalResultFormats(_ formats: Set<String>) -> Set<String> {
-        var normalized: Set<String> = []
-        for format in formats {
-            normalized.insert(format)
-            if let media = formatIRIMapping[format] {
-                normalized.insert(media)
-            }
-        }
-        return normalized
+    /// Whether the endpoint implements this language.
+    public func supportsLanguage(_ language: any ServiceDescription.Language) -> Bool {
+        supportedLanguages.contains { $0 === language }
     }
 
-    private static let formatIRIMapping: [String: String] = [
-        "http://www.w3.org/ns/formats/SPARQL_Results_JSON": SPARQLAccept.jsonResults.rawValue,
-        "http://www.w3.org/ns/formats/SPARQL_Results_XML": SPARQLAccept.xmlResults.rawValue,
-        "http://www.w3.org/ns/formats/SPARQL_Results_CSV": SPARQLAccept.csv.rawValue,
-        "http://www.w3.org/ns/formats/SPARQL_Results_TSV": SPARQLAccept.tsv.rawValue,
-        "http://www.w3.org/ns/formats/Turtle": SPARQLGraphAccept.turtle.rawValue,
-        "http://www.w3.org/ns/formats/N-Triples": SPARQLGraphAccept.ntriples.rawValue,
-        "http://www.w3.org/ns/formats/RDF_XML": SPARQLGraphAccept.rdfXML.rawValue,
-        "http://www.w3.org/ns/formats/JSON-LD": SPARQLGraphAccept.jsonLD.rawValue
-    ]
-}
-
-public struct SPARQLServiceDescriptionParser: Sendable {
-    public init() {}
-
-    public func parseTurtle(_ turtle: String) throws -> SPARQLServiceDescription {
-        let graph = try Graph(turtle: turtle)
-
-        var endpoints: Set<String> = []
-        var supportedLanguages: Set<String> = []
-        var features: Set<String> = []
-        var resultFormats: Set<String> = []
-        var entailmentRegimes: Set<String> = []
-
-        for triple in graph.triples {
-            let predicate = triple.predicate.string
-            switch predicate {
-            case "http://www.w3.org/ns/sparql-service-description#endpoint":
-                if let value = iriString(from: triple.object) {
-                    endpoints.insert(value)
-                }
-            case "http://www.w3.org/ns/sparql-service-description#supportedLanguage":
-                if let value = iriString(from: triple.object) {
-                    supportedLanguages.insert(value)
-                }
-            case "http://www.w3.org/ns/sparql-service-description#feature":
-                if let value = iriString(from: triple.object) {
-                    features.insert(value)
-                }
-            case "http://www.w3.org/ns/sparql-service-description#resultFormat":
-                if let value = iriString(from: triple.object) {
-                    resultFormats.insert(value)
-                }
-            case "http://www.w3.org/ns/sparql-service-description#entailmentRegime":
-                if let value = iriString(from: triple.object) {
-                    entailmentRegimes.insert(value)
-                }
-            default:
-                continue
-            }
-        }
-
-        return SPARQLServiceDescription(
-            endpoints: endpoints,
-            supportedLanguages: supportedLanguages,
-            features: features,
-            resultFormats: resultFormats,
-            entailmentRegimes: entailmentRegimes
-        )
-    }
-
-    private func iriString(from object: RDFTerm) -> String? {
-        (object.node as? IRI)?.string
+    /// Whether the endpoint has this feature.
+    public func hasFeature(_ feature: any ServiceDescription.Feature) -> Bool {
+        features.contains { $0 === feature }
     }
 }

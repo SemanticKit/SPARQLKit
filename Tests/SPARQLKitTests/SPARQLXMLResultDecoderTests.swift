@@ -2,113 +2,74 @@ import Foundation
 import Testing
 @testable import SPARQLKit
 
-@Test
-func xmlResultDecoderParsesBindings() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_xml", withExtension: "xml"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLXMLResultDecoder()
-    let result = try decoder.decode(data)
-
-    #expect(result.variables == [Variable(rawValue: "name"), Variable(rawValue: "count")])
-    #expect(result.bindings.count == 2)
-
-    let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice", language: "en")
-    let expectedCount = try RDFTerm.literal("3", datatype: "http://www.w3.org/2001/XMLSchema#integer")
-    #expect(first[Variable(rawValue: "name")] == expectedName)
-    #expect(first[Variable(rawValue: "count")] == expectedCount)
-}
-
-@Test
-func xmlResultDecoderParsesBooleanAskResult() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "ask_result_true", withExtension: "xml"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLXMLResultDecoder()
-    let result = try decoder.decodeQueryResult(data)
-
-    #expect(result == .boolean(true))
-}
-
-@Test
-func xmlBindingsDecodeRejectsBooleanPayload() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "ask_result_true", withExtension: "xml"))
-    let data = try Data(contentsOf: fixtureURL)
-
+@Suite("SPARQL Query Results XML decoding", .tags(.decoding))
+struct SPARQLXMLResultDecoderTests {
     let decoder = SPARQLXMLResultDecoder()
 
-    do {
-        _ = try decoder.decode(data)
-        Issue.record("Expected decoder to reject boolean payload for bindings decode.")
-    } catch let error as SPARQLError {
-        if case .decodingFailure = error {
-            #expect(Bool(true))
-        } else {
-            Issue.record("Expected decodingFailure but got: \(error)")
+    @Test("Bindings decode into terms")
+    func decodesBindings() throws {
+        let result = try decoder.decode(try fixture("select_result_xml.xml"))
+
+        #expect(result.variables == ["name", "count"])
+        #expect(result.bindings.count == 2)
+        let first = try #require(result.bindings.first)
+        #expect(first["name"] == (try literal("Alice", language: "en")))
+        #expect(first["count"] == (try literal("3", datatype: xsdInteger)))
+    }
+
+    @Test("An ASK result decodes to its boolean")
+    func decodesBoolean() throws {
+        #expect(try decoder.decodeQueryResult(try fixture("ask_result_true.xml")) == .boolean(true))
+    }
+
+    @Test("Asking for bindings from a boolean document fails")
+    func bindingsFromBooleanFails() throws {
+        let data = try fixture("ask_result_true.xml")
+        #expect(throws: SPARQLError.decodingFailure("Expected bindings payload, found boolean ASK result.")) {
+            _ = try decoder.decode(data)
         }
     }
-}
 
-@Test
-func xmlResultDecoderRejectsMixedPayload() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "invalid_mixed_result", withExtension: "xml"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLXMLResultDecoder()
-
-    do {
-        _ = try decoder.decodeQueryResult(data)
-        Issue.record("Expected decoder to reject mixed boolean/results payload.")
-    } catch let error as SPARQLError {
-        if case .decodingFailure = error {
-            #expect(Bool(true))
-        } else {
-            Issue.record("Expected decodingFailure but got: \(error)")
+    @Test("A document with both a boolean and results is rejected")
+    func mixedDocumentFails() throws {
+        let data = try fixture("invalid_mixed_result.xml")
+        #expect(throws: SPARQLError.decodingFailure("Invalid mixed XML result payload.")) {
+            _ = try decoder.decodeQueryResult(data)
         }
     }
-}
 
-@Test
-func xmlResultDecoderParsesTripleTermsAndDirectionalLiterals() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_xml_triple_terms", withExtension: "xml"))
-    let data = try Data(contentsOf: fixtureURL)
+    @Test("Triple terms and directional literals decode")
+    func decodesTripleTermsAndDirections() throws {
+        let row = try #require(try decoder.decode(try fixture("select_result_xml_triple_terms.xml")).bindings.first)
 
-    let decoder = SPARQLXMLResultDecoder()
-    let result = try decoder.decode(data)
-    let row = try #require(result.bindings.first)
+        #expect(row["triple"] == triple("http://example.org/alice", "http://example.org/name", try literal("Alice")))
+        #expect(row["label"] == (try literal("chat", language: "fr", direction: .ltr)))
+    }
 
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
-        )
-    )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
+    @Test("Unicode lexical forms are kept")
+    func keepsUnicode() throws {
+        let payload = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <sparql xmlns="http://www.w3.org/2005/sparql-results#">
+          <head><variable name="label"/></head>
+          <results><result><binding name="label"><literal xml:lang="ar">مرحبا</literal></binding></result></results>
+        </sparql>
+        """
+        let first = try #require(try decoder.decode(Data(payload.utf8)).bindings.first)
+        #expect(first["label"] == (try literal("مرحبا", language: "ar")))
+    }
 
-    #expect(row[Variable(rawValue: "triple")] == expectedTriple)
-    #expect(row[Variable(rawValue: "label")] == expectedDirectionalLiteral)
-}
-
-@Test
-func xmlResultDecoderPreservesUnicodeLanguageLiteralContent() throws {
-    let payload = """
-    <?xml version="1.0" encoding="UTF-8"?>
-    <sparql xmlns="http://www.w3.org/2005/sparql-results#">
-      <head><variable name="label"/></head>
-      <results>
-        <result>
-          <binding name="label"><literal xml:lang="ar">مرحبا</literal></binding>
-        </result>
-      </results>
-    </sparql>
-    """
-    let data = Data(payload.utf8)
-
-    let decoder = SPARQLXMLResultDecoder()
-    let result = try decoder.decode(data)
-    let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.literal("مرحبا", language: "ar")
-    #expect(first[Variable(rawValue: "label")] == expected)
+    @Test("A relative IRI is rejected as it enters")
+    func rejectsRelativeIRI() {
+        let payload = """
+        <?xml version="1.0"?>
+        <sparql xmlns="http://www.w3.org/2005/sparql-results#">
+          <head><variable name="x"/></head>
+          <results><result><binding name="x"><uri>relative/iri</uri></binding></result></results>
+        </sparql>
+        """
+        #expect(throws: SPARQLError.decodingFailure("<relative/iri> is not an absolute IRI.")) {
+            _ = try decoder.decode(Data(payload.utf8))
+        }
+    }
 }

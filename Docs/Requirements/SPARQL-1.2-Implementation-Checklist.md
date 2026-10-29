@@ -31,9 +31,9 @@ Legend:
 - [x] `REQ-QUERY-002` Query form support: `ASK`.
   - Includes rendering, result decoding, and typed endpoint execution (`executeAsk`).
 - [x] `REQ-QUERY-003` Query form support: `CONSTRUCT`.
-  - Includes rendering, graph result handling, and typed endpoint execution (`executeConstruct`).
+  - Includes rendering, graph result handling, and typed endpoint execution (`executeGraphQuery`).
 - [x] `REQ-QUERY-004` Query form support: `DESCRIBE`.
-  - Includes rendering, endpoint compatibility checks, graph result handling, and typed endpoint execution (`executeDescribe`).
+  - Includes rendering, endpoint compatibility checks, graph result handling, and typed endpoint execution (`executeGraphQuery`).
 - [x] `REQ-QUERY-005` Graph pattern composition: `OPTIONAL`, `UNION`, `MINUS`, `FILTER`, `BIND`, `VALUES`.
   - Tests: snapshot rendering + integration cardinality checks.
 - [x] `REQ-QUERY-006` Grouping and solution modifiers: `GROUP BY`, `HAVING`, `ORDER BY`, `DISTINCT`, `REDUCED`, `LIMIT`, `OFFSET`.
@@ -67,13 +67,13 @@ Legend:
 ## 3) Update Requirements (`SRC-UPDATE`)
 
 - [x] `REQ-UPD-001` `INSERT DATA` and `DELETE DATA`.
-  - Rendering and typed endpoint execution helpers are implemented (`executeInsertData`, `executeDeleteData`).
+  - Typed `SPARQLUpdateOperation.insertData` / `.deleteData` over RDFKit triples, executed with `executeUpdate`.
 - [x] `REQ-UPD-002` `DELETE/INSERT ... WHERE`.
-  - Rendering and typed endpoint execution helper are implemented (`executeDeleteInsertWhere`).
+  - Typed `SPARQLUpdateOperation.modify(with:delete:insert:where:)`, executed with `executeUpdate`.
 - [x] `REQ-UPD-003` Graph management operations: `LOAD`, `CLEAR`, `CREATE`, `DROP`.
-  - Rendering and typed endpoint execution helpers are implemented (`executeLoad`, `executeClear`, `executeCreate`, `executeDrop`).
+  - Typed `.load`, `.clear`, `.create` and `.drop` operations, executed with `executeUpdate`.
 - [x] `REQ-UPD-004` Graph copy/move/add operations: `COPY`, `MOVE`, `ADD`.
-  - Rendering and typed endpoint execution helpers are implemented (`executeCopy`, `executeMove`, `executeAdd`).
+  - Typed `.copy`, `.move` and `.add` operations, executed with `executeUpdate`.
 - [x] `REQ-UPD-005` Multiple-operation request sequencing and atomicity semantics.
   - Added explicit batch execution modes (`singleRequestAtomic` and `sequentialRequests`) with deterministic ordering and stop-on-first-failure behavior.
   - Tests: request-construction and execution-path coverage for combined single-request updates, per-operation sequencing, and short-circuit on failure.
@@ -106,12 +106,12 @@ Legend:
 - [x] `REQ-RES-CSVTSV-004` Decode triple terms in TSV rows (`<<(... )>>`).
 - [x] `REQ-RES-CSVTSV-005` Decode directional language-tagged literals in TSV (`@lang--dir`).
 - [x] `REQ-RES-CSVTSV-006` CSV term normalization for triple terms beyond lossy string mode.
-  - Added opt-in CSV term normalization (`decodeCSV(..., normalizeTerms: true)`) that decodes IRI, blank node, typed/language/directional literals, and triple terms.
+  - CSV values decode as simple literals, as the CSV format carries no term types; TSV fields decode through RDFKit's `TurtleDecoder`.
 
 ## 5) Federated Query Requirements (`SRC-FED`)
 
 - [x] `REQ-FED-001` `SERVICE` clause pass-through/query composition.
-  - Includes rendering/analysis plus typed endpoint execution helper (`executeFederatedSelect`) with result decoding.
+  - Includes rendering/analysis plus endpoint execution through `executeSelect` with result decoding.
 - [x] `REQ-FED-002` Remote endpoint failure handling and timeout behavior.
   - Federated execution now has explicit timeout/error propagation coverage via throwing session tests.
 - [x] `REQ-FED-003` Variable binding propagation across local/remote patterns.
@@ -151,9 +151,9 @@ Legend:
 - [x] `REQ-CORE-002` Query API covers complete SPARQL query forms.
   - Typed endpoint execution helpers now cover `SELECT`, `ASK`, `CONSTRUCT`, `DESCRIBE`, and federated `SELECT`.
 - [x] `REQ-CORE-003` Graph and dataset abstraction for query/update workflows.
-  - Added shared `SPARQLDataset` abstraction in core model.
+  - Dataset IRIs travel in `SPARQLQueryRequestOptions` and `SPARQLUpdateRequestOptions`.
   - Integrated dataset abstraction with protocol query/update request option construction.
-  - Added direct dataset overloads across high-level endpoint query/update execution APIs (`executeSelect`, `executeAsk`, `executeConstruct`, `executeDescribe`, `executeFederatedSelect`, and `executeUpdate` variants).
+  - Every execution API (`executeSelect`, `executeAsk`, `executeGraphQuery` and `executeUpdate`) takes those options.
 - [x] `REQ-SEC-001` Injection-resistant query/update parameter handling.
   - Form-urlencoded serialization percent-encodes query/update values and dataset URI parameters to prevent parameter-smuggling via reserved characters.
   - Endpoint and graph-store clients reject header names/values containing control characters (CR/LF/control-byte injection hardening).
@@ -234,7 +234,7 @@ Legend:
 - [x] `TEST-030` CSV term normalization coverage for IRI/bnode/typed/directional/triple terms.
 - [x] `TEST-031` Subquery scope/shadowing validation coverage (projected vs non-projected variables, nested leakage).
 - [x] `TEST-032` Update endpoint routing coverage (fallback to query endpoint + explicit update endpoint precedence).
-- [x] `TEST-033` Typed query-form endpoint execution coverage (`executeAsk`, `executeSelect`, `executeConstruct`, `executeDescribe`).
+- [x] `TEST-033` Typed query-form endpoint execution coverage (`executeAsk`, `executeSelect`, `executeGraphQuery`).
 - [x] `TEST-034` Graph Store service-reference POST and complete conditional-header propagation coverage.
 - [x] `TEST-035` Property-path closure/grouping and unary-expression edge-case rendering coverage.
 - [x] `TEST-036` Header-injection guard coverage for endpoint and graph-store clients.

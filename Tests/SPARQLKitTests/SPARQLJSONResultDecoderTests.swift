@@ -2,196 +2,109 @@ import Foundation
 import Testing
 @testable import SPARQLKit
 
-@Test
-func jsonResultDecoderParsesBindings() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLJSONResultDecoder()
-    let result = try decoder.decode(data)
-
-    #expect(result.variables == [Variable(rawValue: "name"), Variable(rawValue: "count")])
-    #expect(result.bindings.count == 3)
-
-    let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice")
-    #expect(first[Variable(rawValue: "name")] == expectedName)
-    let expectedCount = try RDFTerm.literal(
-        "3",
-        datatype: "http://www.w3.org/2001/XMLSchema#integer"
-    )
-    #expect(first[Variable(rawValue: "count")] == expectedCount)
-}
-
-@Test
-func jsonResultDecoderParsesBooleanAskResult() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "ask_result_true", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLJSONResultDecoder()
-    let result = try decoder.decodeQueryResult(data)
-
-    #expect(result == .boolean(true))
-}
-
-@Test
-func jsonBindingsDecodeRejectsBooleanPayload() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "ask_result_true", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
+@Suite("SPARQL Query Results JSON decoding", .tags(.decoding))
+struct SPARQLJSONResultDecoderTests {
     let decoder = SPARQLJSONResultDecoder()
 
-    do {
-        _ = try decoder.decode(data)
-        Issue.record("Expected decoder to reject boolean payload for bindings decode.")
-    } catch let error as SPARQLError {
-        if case .decodingFailure = error {
-            #expect(Bool(true))
-        } else {
-            Issue.record("Expected decodingFailure but got: \(error)")
+    @Test("Bindings decode into terms")
+    func decodesBindings() throws {
+        let result = try decoder.decode(try fixture("select_result.json"))
+
+        #expect(result.variables == ["name", "count"])
+        #expect(result.bindings.count == 3)
+        let first = try #require(result.bindings.first)
+        #expect(first["name"] == (try literal("Alice")))
+        #expect(first["count"] == (try literal("3", datatype: xsdInteger)))
+    }
+
+    @Test("An ASK result decodes to its boolean")
+    func decodesBoolean() throws {
+        #expect(try decoder.decodeQueryResult(try fixture("ask_result_true.json")) == .boolean(true))
+    }
+
+    @Test("An ASK result whose head has no vars decodes")
+    func askWithEmptyHead() throws {
+        #expect(try decoder.decodeQueryResult(Data(#"{"head":{},"boolean":false}"#.utf8)) == .boolean(false))
+    }
+
+    @Test("Asking for bindings from a boolean document fails")
+    func bindingsFromBooleanFails() throws {
+        let data = try fixture("ask_result_true.json")
+        #expect(throws: SPARQLError.decodingFailure("Expected bindings payload, found boolean ASK result.")) {
+            _ = try decoder.decode(data)
         }
     }
-}
 
-@Test
-func jsonResultDecoderRejectsMixedPayload() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "invalid_mixed_result", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLJSONResultDecoder()
-
-    do {
-        _ = try decoder.decodeQueryResult(data)
-        Issue.record("Expected decoder to reject mixed boolean/results payload.")
-    } catch let error as SPARQLError {
-        if case .decodingFailure = error {
-            #expect(Bool(true))
-        } else {
-            Issue.record("Expected decodingFailure but got: \(error)")
+    @Test("A document with both a boolean and results is rejected")
+    func mixedDocumentFails() throws {
+        let data = try fixture("invalid_mixed_result.json")
+        #expect(throws: SPARQLError.decodingFailure("Invalid mixed JSON result payload.")) {
+            _ = try decoder.decodeQueryResult(data)
         }
     }
-}
 
-@Test
-func jsonResultDecoderParsesAllTermKinds() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "term_coverage_result", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
+    @Test("IRIs, blank nodes, language-tagged and typed literals decode")
+    func decodesEveryTermKind() throws {
+        let result = try decoder.decode(try fixture("term_coverage_result.json"))
 
-    let decoder = SPARQLJSONResultDecoder()
-    let result = try decoder.decode(data)
+        #expect(result.variables == ["u", "b", "lang", "typed"])
+        let first = try #require(result.bindings.first)
+        #expect(first["u"] == iri("http://example.org/resource"))
+        #expect(first["b"] == blank("node1"))
+        #expect(first["lang"] == (try literal("hello", language: "en")))
+        #expect(first["typed"] == (try literal("42", datatype: xsdInteger)))
+    }
 
-    #expect(result.variables == [
-        Variable(rawValue: "u"),
-        Variable(rawValue: "b"),
-        Variable(rawValue: "lang"),
-        Variable(rawValue: "typed")
-    ])
+    @Test("Triple terms and directional literals decode; xsd:string is a simple literal")
+    func decodesTripleTermsAndDirections() throws {
+        let row = try #require(try decoder.decode(try fixture("select_result_json_triple_terms.json")).bindings.first)
 
-    let first = try #require(result.bindings.first)
-    let expectedURI = try RDFTerm.iri("http://example.org/resource")
-    let expectedBlankNode = try RDFTerm.blankNode("node1")
-    let expectedLang = try RDFTerm.literal("hello", language: "en")
-    let expectedTyped = try RDFTerm.literal("42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
+        #expect(row["triple"] == triple("http://example.org/alice", "http://example.org/name", try literal("Alice")))
+        #expect(row["label"] == (try literal("chat", language: "fr", direction: .ltr)))
+    }
 
-    #expect(first[Variable(rawValue: "u")] == expectedURI)
-    #expect(first[Variable(rawValue: "b")] == expectedBlankNode)
-    #expect(first[Variable(rawValue: "lang")] == expectedLang)
-    #expect(first[Variable(rawValue: "typed")] == expectedTyped)
-}
+    @Test("The version comes from the document, else from the media type")
+    func decodesVersion() throws {
+        #expect(try decoder.decode(try fixture("select_result_with_version.json")).version == "1.2")
 
-@Test
-func jsonResultDecoderParsesTripleTermsAndDirectionalLiterals() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_json_triple_terms", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
+        let fromDocument = try decoder.decodeQueryResultWithMetadata(try fixture("ask_result_true_with_version.json"))
+        #expect(fromDocument.version == "1.2")
+        #expect(fromDocument.result == .boolean(true))
 
-    let decoder = SPARQLJSONResultDecoder()
-    let result = try decoder.decode(data)
-    let row = try #require(result.bindings.first)
-
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
+        let fromMediaType = try decoder.decodeQueryResultWithMetadata(
+            try fixture("ask_result_true.json"),
+            contentType: "application/sparql-results+json; charset=utf-8; version=1.2"
         )
-    )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
+        #expect(fromMediaType.version == "1.2")
 
-    #expect(row[Variable(rawValue: "triple")] == expectedTriple)
-    #expect(row[Variable(rawValue: "label")] == expectedDirectionalLiteral)
-}
-
-@Test
-func jsonResultDecoderSurfacesVersionForBindingsResults() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_with_version", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLJSONResultDecoder()
-    let result = try decoder.decode(data)
-
-    #expect(result.version == "1.2")
-    #expect(result.bindings.count == 1)
-}
-
-@Test
-func jsonResultDecoderSurfacesVersionForBooleanResults() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "ask_result_true_with_version", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLJSONResultDecoder()
-    let decoded = try decoder.decodeQueryResultWithMetadata(data)
-
-    #expect(decoded.version == "1.2")
-    #expect(decoded.result == .boolean(true))
-}
-
-@Test
-func jsonResultDecoderSurfacesVersionFromContentTypeParameter() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "ask_result_true", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLJSONResultDecoder()
-    let decoded = try decoder.decodeQueryResultWithMetadata(
-        data,
-        contentType: "application/sparql-results+json; charset=utf-8; version=1.2"
-    )
-
-    #expect(decoded.version == "1.2")
-    #expect(decoded.result == .boolean(true))
-}
-
-@Test
-func jsonResultDecoderPrefersPayloadVersionOverContentTypeVersion() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "ask_result_true_with_version", withExtension: "json"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLJSONResultDecoder()
-    let decoded = try decoder.decodeQueryResultWithMetadata(
-        data,
-        contentType: "application/sparql-results+json; version=1.1"
-    )
-
-    #expect(decoded.version == "1.2")
-    #expect(decoded.result == .boolean(true))
-}
-
-@Test
-func jsonResultDecoderPreservesUnicodeLanguageLiteralContent() throws {
-    let payload = """
-    {
-      "head": { "vars": ["label"] },
-      "results": {
-        "bindings": [
-          { "label": { "type": "literal", "xml:lang": "ja", "value": "こんにちは世界" } }
-        ]
-      }
+        let preferred = try decoder.decodeQueryResultWithMetadata(
+            try fixture("ask_result_true_with_version.json"),
+            contentType: "application/sparql-results+json; version=1.1"
+        )
+        #expect(preferred.version == "1.2")
     }
-    """
-    let data = Data(payload.utf8)
 
-    let decoder = SPARQLJSONResultDecoder()
-    let result = try decoder.decode(data)
-    let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.literal("こんにちは世界", language: "ja")
-    #expect(first[Variable(rawValue: "label")] == expected)
+    @Test("Unicode lexical forms are kept")
+    func keepsUnicode() throws {
+        let payload = #"{"head":{"vars":["label"]},"results":{"bindings":[{"label":{"type":"literal","xml:lang":"ja","value":"こんにちは世界"}}]}}"#
+        let first = try #require(try decoder.decode(Data(payload.utf8)).bindings.first)
+        #expect(first["label"] == (try literal("こんにちは世界", language: "ja")))
+    }
+
+    @Test("Malformed terms are rejected as they enter", arguments: [
+        #"{"type":"uri","value":"relative/iri"}"#,
+        #"{"type":"bnode","value":""}"#,
+        #"{"type":"literal","value":"x","xml:lang":""}"#,
+        #"{"type":"literal","value":"x","its:dir":"ltr"}"#,
+        #"{"type":"literal","value":"x","xml:lang":"en","its:dir":"up"}"#,
+        #"{"type":"literal","value":"x","datatype":"http://www.w3.org/1999/02/22-rdf-syntax-ns#langString"}"#,
+        #"{"type":"typed-literal","value":"x"}"#,
+        #"{"type":"triple","value":{"subject":{"type":"literal","value":"s"},"predicate":{"type":"uri","value":"http://example.org/p"},"object":{"type":"uri","value":"http://example.org/o"}}}"#
+    ])
+    func rejectsMalformedTerms(term: String) {
+        let payload = #"{"head":{"vars":["x"]},"results":{"bindings":[{"x":"# + term + "}]}}"
+        #expect(throws: SPARQLError.self) {
+            _ = try decoder.decode(Data(payload.utf8))
+        }
+    }
 }

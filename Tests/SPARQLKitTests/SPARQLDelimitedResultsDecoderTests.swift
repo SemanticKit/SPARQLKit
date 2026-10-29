@@ -2,145 +2,90 @@ import Foundation
 import Testing
 @testable import SPARQLKit
 
-@Test
-func csvDecoderParsesBindings() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_csv", withExtension: "csv"))
-    let data = try Data(contentsOf: fixtureURL)
-
+@Suite("SPARQL Query Results CSV and TSV decoding", .tags(.decoding))
+struct SPARQLDelimitedResultsDecoderTests {
     let decoder = SPARQLDelimitedResultsDecoder()
-    let result = try decoder.decodeCSV(data)
 
-    #expect(result.variables == [Variable(rawValue: "name"), Variable(rawValue: "count")])
-    #expect(result.bindings.count == 3)
+    @Test("CSV values are simple literals: CSV does not record term kinds")
+    func csvValuesAreSimpleLiterals() throws {
+        let result = try decoder.decodeCSV(try fixture("select_result_csv.csv"))
 
-    let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice")
-    let expectedCount = try RDFTerm.literal("3")
-    #expect(first[Variable(rawValue: "name")] == expectedName)
-    #expect(first[Variable(rawValue: "count")] == expectedCount)
-}
+        #expect(result.variables == ["name", "count"])
+        #expect(result.bindings.count == 3)
+        let first = try #require(result.bindings.first)
+        #expect(first["name"] == (try literal("Alice")))
+        #expect(first["count"] == (try literal("3")))
+    }
 
-@Test
-func tsvDecoderParsesBindings() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_tsv", withExtension: "tsv"))
-    let data = try Data(contentsOf: fixtureURL)
+    @Test("CSV quoted fields keep commas and doubled quotes; empty fields are unbound")
+    func csvQuotingAndUnbound() throws {
+        let result = try decoder.decodeCSV(try fixture("select_result_csv_edge.csv"))
 
-    let decoder = SPARQLDelimitedResultsDecoder()
-    let result = try decoder.decodeTSV(data)
+        #expect(result.bindings.count == 2)
+        let first = try #require(result.bindings.first)
+        #expect(first["name"] == (try literal("Alice, A.")))
+        #expect(first["note"] == (try literal("He said \"hi\"")))
+        let second = try #require(result.bindings.last)
+        #expect(second["count"] == nil)
+        #expect(second["note"] == nil)
+    }
 
-    #expect(result.variables == [Variable(rawValue: "name"), Variable(rawValue: "count")])
-    #expect(result.bindings.count == 3)
+    @Test("CSV keeps term-like text as the text it is")
+    func csvKeepsTermLikeText() throws {
+        let row = try #require(try decoder.decodeCSV(try fixture("select_result_csv_terms.csv")).bindings.first)
 
-    let first = try #require(result.bindings.first)
-    let expectedName = try RDFTerm.literal("Alice")
-    let expectedCount = try RDFTerm.literal("3")
-    #expect(first[Variable(rawValue: "name")] == expectedName)
-    #expect(first[Variable(rawValue: "count")] == expectedCount)
-}
+        #expect(row["iri"] == (try literal("http://example.org/r")))
+        #expect(row["bnode"] == (try literal("_:b1")))
+        #expect(row["typed"] == (try literal("42")))
+        #expect(row["label"] == (try literal("chat")))
+    }
 
-@Test
-func csvDecoderHandlesQuotedFieldsAndUnboundCells() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_csv_edge", withExtension: "csv"))
-    let data = try Data(contentsOf: fixtureURL)
+    @Test("TSV fields are Turtle terms, numbers included")
+    func tsvFieldsAreTurtleTerms() throws {
+        let result = try decoder.decodeTSV(try fixture("select_result_tsv.tsv"))
 
-    let decoder = SPARQLDelimitedResultsDecoder()
-    let result = try decoder.decodeCSV(data)
+        #expect(result.variables == ["name", "count"])
+        #expect(result.bindings.count == 3)
+        let first = try #require(result.bindings.first)
+        #expect(first["name"] == (try literal("Alice")))
+        #expect(first["count"] == (try literal("3", datatype: xsdInteger)))
+    }
 
-    #expect(result.bindings.count == 2)
+    @Test("TSV decodes IRIs, blank nodes, language-tagged and typed literals")
+    func tsvDecodesEveryTermKind() throws {
+        let row = try #require(try decoder.decodeTSV(try fixture("select_result_tsv_terms.tsv")).bindings.first)
 
-    let first = try #require(result.bindings.first)
-    let expectedQuotedName = try RDFTerm.literal("Alice, A.")
-    let expectedQuotedNote = try RDFTerm.literal("He said \"hi\"")
-    #expect(first[Variable(rawValue: "name")] == expectedQuotedName)
-    #expect(first[Variable(rawValue: "note")] == expectedQuotedNote)
+        #expect(row["iri"] == iri("http://example.org/r"))
+        #expect(row["bnode"] == blank("b1"))
+        #expect(row["lang"] == (try literal("bonjour", language: "fr")))
+        #expect(row["typed"] == (try literal("42", datatype: xsdInteger)))
+        #expect(row["plain"] == (try literal("text")))
+    }
 
-    let second = try #require(result.bindings.last)
-    #expect(second[Variable(rawValue: "count")] == nil)
-    #expect(second[Variable(rawValue: "note")] == nil)
-}
+    @Test("TSV decodes triple terms and directional literals")
+    func tsvDecodesTripleTerms() throws {
+        let row = try #require(try decoder.decodeTSV(try fixture("select_result_tsv_triple_terms.tsv")).bindings.first)
 
-@Test
-func tsvDecoderParsesTypedLanguageAndNodeTerms() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_tsv_terms", withExtension: "tsv"))
-    let data = try Data(contentsOf: fixtureURL)
+        #expect(row["triple"] == triple("http://example.org/alice", "http://example.org/name", try literal("Alice")))
+        #expect(row["label"] == (try literal("chat", language: "fr", direction: .ltr)))
+    }
 
-    let decoder = SPARQLDelimitedResultsDecoder()
-    let result = try decoder.decodeTSV(data)
+    @Test("TSV keeps a blank node label across rows")
+    func tsvKeepsBlankNodeLabels() throws {
+        let result = try decoder.decodeTSV(Data("?x\n_:b1\n_:b1\n".utf8))
+        #expect(result.bindings == [["x": blank("b1")], ["x": blank("b1")]])
+    }
 
-    let row = try #require(result.bindings.first)
-    let expectedIRI = try RDFTerm.iri("http://example.org/r")
-    let expectedBNode = try RDFTerm.blankNode("b1")
-    let expectedLang = try RDFTerm.literal("bonjour", language: "fr")
-    let expectedTyped = try RDFTerm.literal("42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
-    let expectedPlain = try RDFTerm.literal("text")
-    #expect(row[Variable(rawValue: "iri")] == expectedIRI)
-    #expect(row[Variable(rawValue: "bnode")] == expectedBNode)
-    #expect(row[Variable(rawValue: "lang")] == expectedLang)
-    #expect(row[Variable(rawValue: "typed")] == expectedTyped)
-    #expect(row[Variable(rawValue: "plain")] == expectedPlain)
-}
+    @Test("TSV unescapes string escapes and keeps Unicode")
+    func tsvUnescapes() throws {
+        let result = try decoder.decodeTSV(Data("?label\n\"γειά σου\"@el\n\"tab\\there\"\n".utf8))
+        #expect(result.bindings == [["label": try literal("γειά σου", language: "el")], ["label": try literal("tab\there")]])
+    }
 
-@Test
-func tsvDecoderParsesTripleTermsAndDirectionalLiterals() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_tsv_triple_terms", withExtension: "tsv"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLDelimitedResultsDecoder()
-    let result = try decoder.decodeTSV(data)
-    let row = try #require(result.bindings.first)
-
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
-        )
-    )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
-
-    #expect(row[Variable(rawValue: "triple")] == expectedTriple)
-    #expect(row[Variable(rawValue: "label")] == expectedDirectionalLiteral)
-}
-
-@Test
-func csvDecoderNormalizesTermSyntaxIncludingTripleTerms() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "select_result_csv_terms", withExtension: "csv"))
-    let data = try Data(contentsOf: fixtureURL)
-
-    let decoder = SPARQLDelimitedResultsDecoder()
-    let result = try decoder.decodeCSV(data, normalizeTerms: true)
-    let row = try #require(result.bindings.first)
-
-    let expectedIRI = try RDFTerm.iri("http://example.org/r")
-    let expectedBNode = try RDFTerm.blankNode("b1")
-    let expectedTyped = try RDFTerm.literal("42", datatype: "http://www.w3.org/2001/XMLSchema#integer")
-    let expectedTriple = RDFTerm(
-        RDFTripleTerm(
-            subject: try RDFSubject(try IRI("http://example.org/alice")),
-            predicate: try IRI("http://example.org/name"),
-            object: try RDFTerm.literal("Alice", datatype: "http://www.w3.org/2001/XMLSchema#string")
-        )
-    )
-    let expectedDirectionalLiteral = try RDFTerm.literal("chat", language: "fr", direction: .ltr)
-
-    #expect(row[Variable(rawValue: "iri")] == expectedIRI)
-    #expect(row[Variable(rawValue: "bnode")] == expectedBNode)
-    #expect(row[Variable(rawValue: "typed")] == expectedTyped)
-    #expect(row[Variable(rawValue: "triple")] == expectedTriple)
-    #expect(row[Variable(rawValue: "label")] == expectedDirectionalLiteral)
-}
-
-@Test
-func tsvDecoderPreservesUnicodeLanguageLiteralContent() throws {
-    let payload = """
-    ?label
-    "γειά σου"@el
-    """
-    let data = Data(payload.utf8)
-
-    let decoder = SPARQLDelimitedResultsDecoder()
-    let result = try decoder.decodeTSV(data)
-    let first = try #require(result.bindings.first)
-    let expected = try RDFTerm.literal("γειά σου", language: "el")
-    #expect(first[Variable(rawValue: "label")] == expected)
+    @Test("A TSV field that is not one term is rejected", arguments: ["UNDEF", "<http://example.org/a> , <http://example.org/b>", "\"open"])
+    func tsvRejectsNonTerms(field: String) {
+        #expect(throws: SPARQLError.self) {
+            _ = try decoder.decodeTSV(Data("?x\n\(field)\n".utf8))
+        }
+    }
 }

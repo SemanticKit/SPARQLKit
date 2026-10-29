@@ -1,0 +1,48 @@
+import IRIKit
+
+/// A `CONSTRUCT` query (SPARQL 1.2 Query Language §16.2).
+public struct SPARQLConstructQuery: SPARQLGraphQuery, Hashable {
+    /// The triples the query builds for each solution.
+    public var template: [SPARQLTriplePattern]
+    public var fromGraphs: [IRI]
+    public var fromNamedGraphs: [IRI]
+    public var patterns: [SPARQLPattern]
+    public var orderBy: [SPARQLOrderCondition]
+    public var limit: Int?
+    public var offset: Int?
+
+    public init(
+        _ template: [SPARQLTriplePattern],
+        fromGraphs: [IRI] = [],
+        fromNamedGraphs: [IRI] = [],
+        where patterns: [SPARQLPattern],
+        orderBy: [SPARQLOrderCondition] = [],
+        limit: Int? = nil,
+        offset: Int? = nil
+    ) {
+        self.template = template
+        self.fromGraphs = fromGraphs
+        self.fromNamedGraphs = fromNamedGraphs
+        self.patterns = patterns
+        self.orderBy = orderBy
+        self.limit = limit
+        self.offset = offset
+    }
+
+    public func render() -> String {
+        let writer = SPARQLTermWriter()
+        var lines = SPARQLLines()
+        lines.block("CONSTRUCT") { lines in
+            for pattern in template { lines.append(pattern.render()) }
+        }
+        for graph in fromGraphs { lines.append("FROM " + writer.write(graph)) }
+        for graph in fromNamedGraphs { lines.append("FROM NAMED " + writer.write(graph)) }
+        lines.block("WHERE") { SPARQLPattern.render(patterns, into: &$0) }
+        if !orderBy.isEmpty {
+            lines.append("ORDER BY " + orderBy.map { $0.render() }.joined(separator: " "))
+        }
+        if let limit { lines.append("LIMIT \(limit)") }
+        if let offset { lines.append("OFFSET \(offset)") }
+        return lines.text
+    }
+}

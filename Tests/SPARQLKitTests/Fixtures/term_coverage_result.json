@@ -9,7 +9,7 @@
         "b": { "type": "bnode", "value": "node1" },
         "lang": { "type": "literal", "xml:lang": "en", "value": "hello" },
         "typed": {
-          "type": "typed-literal",
+          "type": "literal",
           "datatype": "http://www.w3.org/2001/XMLSchema#integer",
           "value": "42"
         }

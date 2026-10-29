@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+import IRIKit
+import RDFFormats
 
 public struct SPARQLConformanceSuite: Codable, Sendable {
     public let name: String
@@ -21,10 +26,10 @@ public struct SPARQLConformanceCase: Codable, Sendable {
     public let queryTemplate: SPARQLConformanceQueryTemplate?
     public let queryText: String?
     public let updateText: String?
-    public let defaultGraphURIs: [String]
-    public let namedGraphURIs: [String]
-    public let usingGraphURIs: [String]
-    public let usingNamedGraphURIs: [String]
+    public let defaultGraphs: [IRI]
+    public let namedGraphs: [IRI]
+    public let usingGraphs: [IRI]
+    public let usingNamedGraphs: [IRI]
 
     public let expectVariableCount: Int?
     public let expectBindingCount: Int?
@@ -41,10 +46,10 @@ public struct SPARQLConformanceCase: Codable, Sendable {
         case queryTemplate
         case queryText
         case updateText
-        case defaultGraphURIs
-        case namedGraphURIs
-        case usingGraphURIs
-        case usingNamedGraphURIs
+        case defaultGraphs
+        case namedGraphs
+        case usingGraphs
+        case usingNamedGraphs
         case expectVariableCount
         case expectBindingCount
         case expectBoolean
@@ -61,10 +66,10 @@ public struct SPARQLConformanceCase: Codable, Sendable {
         queryTemplate: SPARQLConformanceQueryTemplate? = nil,
         queryText: String? = nil,
         updateText: String? = nil,
-        defaultGraphURIs: [String] = [],
-        namedGraphURIs: [String] = [],
-        usingGraphURIs: [String] = [],
-        usingNamedGraphURIs: [String] = [],
+        defaultGraphs: [IRI] = [],
+        namedGraphs: [IRI] = [],
+        usingGraphs: [IRI] = [],
+        usingNamedGraphs: [IRI] = [],
         expectVariableCount: Int? = nil,
         expectBindingCount: Int? = nil,
         expectBoolean: Bool? = nil,
@@ -79,10 +84,10 @@ public struct SPARQLConformanceCase: Codable, Sendable {
         self.queryTemplate = queryTemplate
         self.queryText = queryText
         self.updateText = updateText
-        self.defaultGraphURIs = defaultGraphURIs
-        self.namedGraphURIs = namedGraphURIs
-        self.usingGraphURIs = usingGraphURIs
-        self.usingNamedGraphURIs = usingNamedGraphURIs
+        self.defaultGraphs = defaultGraphs
+        self.namedGraphs = namedGraphs
+        self.usingGraphs = usingGraphs
+        self.usingNamedGraphs = usingNamedGraphs
         self.expectVariableCount = expectVariableCount
         self.expectBindingCount = expectBindingCount
         self.expectBoolean = expectBoolean
@@ -100,10 +105,10 @@ public struct SPARQLConformanceCase: Codable, Sendable {
         queryTemplate = try container.decodeIfPresent(SPARQLConformanceQueryTemplate.self, forKey: .queryTemplate)
         queryText = try container.decodeIfPresent(String.self, forKey: .queryText)
         updateText = try container.decodeIfPresent(String.self, forKey: .updateText)
-        defaultGraphURIs = try container.decodeIfPresent([String].self, forKey: .defaultGraphURIs) ?? []
-        namedGraphURIs = try container.decodeIfPresent([String].self, forKey: .namedGraphURIs) ?? []
-        usingGraphURIs = try container.decodeIfPresent([String].self, forKey: .usingGraphURIs) ?? []
-        usingNamedGraphURIs = try container.decodeIfPresent([String].self, forKey: .usingNamedGraphURIs) ?? []
+        defaultGraphs = try container.decodeIfPresent([IRI].self, forKey: .defaultGraphs) ?? []
+        namedGraphs = try container.decodeIfPresent([IRI].self, forKey: .namedGraphs) ?? []
+        usingGraphs = try container.decodeIfPresent([IRI].self, forKey: .usingGraphs) ?? []
+        usingNamedGraphs = try container.decodeIfPresent([IRI].self, forKey: .usingNamedGraphs) ?? []
         expectVariableCount = try container.decodeIfPresent(Int.self, forKey: .expectVariableCount)
         expectBindingCount = try container.decodeIfPresent(Int.self, forKey: .expectBindingCount)
         expectBoolean = try container.decodeIfPresent(Bool.self, forKey: .expectBoolean)
@@ -283,8 +288,8 @@ public struct SPARQLConformanceRunner {
                 accept: accept,
                 method: .get,
                 options: SPARQLQueryRequestOptions(
-                    defaultGraphURIs: testCase.defaultGraphURIs,
-                    namedGraphURIs: testCase.namedGraphURIs
+                    defaultGraphs: testCase.defaultGraphs,
+                    namedGraphs: testCase.namedGraphs
                 )
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "GET")
@@ -298,8 +303,8 @@ public struct SPARQLConformanceRunner {
                 accept: accept,
                 method: .post,
                 options: SPARQLQueryRequestOptions(
-                    defaultGraphURIs: testCase.defaultGraphURIs,
-                    namedGraphURIs: testCase.namedGraphURIs
+                    defaultGraphs: testCase.defaultGraphs,
+                    namedGraphs: testCase.namedGraphs
                 )
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "POST")
@@ -312,8 +317,8 @@ public struct SPARQLConformanceRunner {
                 accept: SPARQLGraphAccept.turtle.rawValue,
                 method: .get,
                 options: SPARQLQueryRequestOptions(
-                    defaultGraphURIs: testCase.defaultGraphURIs,
-                    namedGraphURIs: testCase.namedGraphURIs
+                    defaultGraphs: testCase.defaultGraphs,
+                    namedGraphs: testCase.namedGraphs
                 )
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "GET")
@@ -326,8 +331,8 @@ public struct SPARQLConformanceRunner {
                 accept: SPARQLGraphAccept.turtle.rawValue,
                 method: .post,
                 options: SPARQLQueryRequestOptions(
-                    defaultGraphURIs: testCase.defaultGraphURIs,
-                    namedGraphURIs: testCase.namedGraphURIs
+                    defaultGraphs: testCase.defaultGraphs,
+                    namedGraphs: testCase.namedGraphs
                 )
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "POST")
@@ -338,8 +343,8 @@ public struct SPARQLConformanceRunner {
             let request = try client.makeUpdateRequest(
                 update,
                 options: SPARQLUpdateRequestOptions(
-                    usingGraphURIs: testCase.usingGraphURIs,
-                    usingNamedGraphURIs: testCase.usingNamedGraphURIs
+                    usingGraphs: testCase.usingGraphs,
+                    usingNamedGraphs: testCase.usingNamedGraphs
                 )
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "POST")
@@ -367,8 +372,8 @@ public struct SPARQLConformanceRunner {
             let request = try client.makeRequest(
                 method: "POST",
                 graph: .service,
-                contentType: SPARQLGraphAccept.turtle.rawValue,
-                body: Data("<s> <p> <o> .".utf8)
+                contentType: SPARQLGraphAccept.ntriples.rawValue,
+                body: Data(NTriplesEncoder().encode([Self.graphStoreTriple]).utf8)
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "POST")
 
@@ -378,8 +383,8 @@ public struct SPARQLConformanceRunner {
             let request = try client.makeRequest(
                 method: "PUT",
                 graph: .named(iri),
-                contentType: SPARQLGraphAccept.turtle.rawValue,
-                body: Data("<s> <p> <o> .".utf8)
+                contentType: SPARQLGraphAccept.ntriples.rawValue,
+                body: Data(NTriplesEncoder().encode([Self.graphStoreTriple]).utf8)
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "PUT")
 
@@ -411,10 +416,9 @@ public struct SPARQLConformanceRunner {
 
         switch template {
         case .basicSelect:
-            let query = try SPARQLSelectQuery(
-                prefixes: ["ex": IRI("http://example.org/")],
-                variables: [Variable(rawValue: "s"), Variable(rawValue: "o")],
-                wherePatterns: ["?s ex:p ?o ."],
+            let query = SPARQLSelectQuery(
+                ["s", "o"],
+                where: [.triple(SPARQLTriplePattern(.variable("s"), .iri("http://example.org/p"), .variable("o")))],
                 limit: 5
             )
             return query.render()
@@ -490,20 +494,34 @@ public struct SPARQLConformanceRunner {
         return update
     }
 
-    private func requireNamedGraphIRI(_ testCase: SPARQLConformanceCase) throws -> String {
-        if let iri = testCase.namedGraphURIs.first {
+    private func requireNamedGraphIRI(_ testCase: SPARQLConformanceCase) throws -> IRI {
+        if let iri = testCase.namedGraphs.first {
             return iri
         }
         throw SPARQLConformanceError.assertionFailed("Case \(testCase.id): missing named graph IRI for graph-store request.")
     }
 
     private func requestAcceptHeader(forQuery query: String) -> String {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        if trimmed.hasPrefix("CONSTRUCT") || trimmed.hasPrefix("DESCRIBE") {
-            return SPARQLGraphAccept.turtle.rawValue
-        }
-        return SPARQLAccept.jsonResults.rawValue
+        Self.isGraphQuery(query) ? SPARQLGraphAccept.turtle.rawValue : SPARQLAccept.jsonResults.rawValue
     }
+
+    /// Whether a W3C test's query text is a `CONSTRUCT` or `DESCRIBE` query,
+    /// so its request asks for a graph media type. The text is the test
+    /// suite's own, sent to the endpoint as the suite wrote it.
+    static func isGraphQuery(_ query: String) -> Bool {
+        let form = query
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces).uppercased() }
+            .first { !$0.isEmpty && !$0.hasPrefix("#") && !$0.hasPrefix("PREFIX") && !$0.hasPrefix("BASE") }
+        return form.map { $0.hasPrefix("CONSTRUCT") || $0.hasPrefix("DESCRIBE") } ?? false
+    }
+
+    /// The triple a graph store case sends.
+    static let graphStoreTriple = DecodedTriple(
+        subject: .iri("http://example.org/s"),
+        predicate: "http://example.org/p",
+        object: .iri("http://example.org/o")
+    )
 
     private func assertRequest(
         _ request: URLRequest,

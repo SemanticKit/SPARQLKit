@@ -1,5 +1,5 @@
 import Foundation
-import SemanticKit
+import RDFFormats
 
 public enum SPARQLQueryResult: Hashable, Sendable {
     case bindings(SPARQLResultSet)
@@ -38,10 +38,10 @@ public struct SPARQLJSONResultDecoder: Sendable {
                 throw SPARQLError.decodingFailure("Missing head/results in JSON bindings payload.")
             }
 
-            let variables = head.vars.map(Variable.init(rawValue:))
+            let variables = (head.vars ?? []).map { Variable($0) }
             let bindings = try results.bindings.map { row in
                 try row.reduce(into: Binding()) { partial, entry in
-                    partial[Variable(rawValue: entry.key)] = try entry.value.asTerm
+                    partial[Variable(entry.key)] = try entry.value.asTerm
                 }
             }
             let resultSet = SPARQLResultSet(variables: variables, bindings: bindings, version: announcedVersion)
@@ -99,8 +99,10 @@ private extension SPARQLJSONResultDecoder {
 }
 
 private struct JSONResultResponse: Decodable {
+    /// The head of a results document. An `ASK` result's head has no
+    /// `vars` (SPARQL 1.2 Query Results JSON Format §3.1).
     struct Head: Decodable {
-        let vars: [String]
+        let vars: [String]?
     }
 
     struct Results: Decodable {
@@ -128,48 +130,28 @@ private final class JSONBindingValue: Decodable {
         case direction = "its:dir"
     }
 
-    var asTerm: RDFTerm {
+    var asTerm: ObjectTerm {
         get throws {
-            switch type {
-            case "uri":
-                guard case let .string(value) = value else {
-                    throw SPARQLError.decodingFailure("IRI term value must be a string.")
-                }
-                return try .iri(value)
-            case "bnode":
-                guard case let .string(value) = value else {
-                    throw SPARQLError.decodingFailure("Blank node value must be a string.")
-                }
-                return try .blankNode(value)
-            case "triple":
-                guard case let .triple(tripleValue) = value else {
-                    throw SPARQLError.decodingFailure("Triple term value must be an object.")
-                }
-                let subjectTerm = try tripleValue.subject.asTerm
-                let predicateTerm = try tripleValue.predicate.asTerm
-                let objectTerm = try tripleValue.object.asTerm
-
-                guard let subjectNode = subjectTerm.node as? any SemanticKit.RDFSubject else {
-                    throw SPARQLError.decodingFailure("Triple subject must be IRI or blank node.")
-                }
-                let predicateIRI: IRI
-                if let iri = predicateTerm.node as? IRI {
-                    predicateIRI = iri
-                } else {
-                    throw SPARQLError.decodingFailure("Triple predicate must be an IRI.")
-                }
-                let triple = RDFTripleTerm(
-                    subject: try RDFSubject(subjectNode),
-                    predicate: predicateIRI,
-                    object: RDFTerm(objectTerm.node)
+            let terms = SPARQLResultTermDecoder()
+            switch (type, value) {
+            case ("uri", .string(let value)):
+                return try terms.iri(value)
+            case ("bnode", .string(let value)):
+                return try terms.blankNode(value)
+            case ("triple", .triple(let triple)):
+                return try terms.triple(
+                    subject: triple.subject.asTerm,
+                    predicate: triple.predicate.asTerm,
+                    object: triple.object.asTerm
                 )
-                return RDFTerm(triple)
+            case ("literal", .string(let value)):
+                return try terms.literal(value, datatype: datatype, language: language, direction: direction)
+            case ("triple", _):
+                throw SPARQLError.decodingFailure("A triple term value must be an object.")
+            case ("uri", _), ("bnode", _), ("literal", _):
+                throw SPARQLError.decodingFailure("A \(type) value must be a string.")
             default:
-                guard case let .string(value) = value else {
-                    throw SPARQLError.decodingFailure("Literal term value must be a string.")
-                }
-                let textDirection = direction.flatMap { TextDirection(rawValue: $0.lowercased()) }
-                return try .literal(value, datatype: datatype, language: language, direction: textDirection)
+                throw SPARQLError.decodingFailure("'\(type)' is not a term type.")
             }
         }
     }

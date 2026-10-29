@@ -7,4 +7,4 @@
   sd:feature sd:UnionDefaultGraph ;
   sd:resultFormat formats:SPARQL_Results_JSON ;
   sd:resultFormat formats:Turtle ;
-  sd:entailmentRegime <http://www.w3.org/ns/entailment/RDFS> .
+  sd:defaultEntailmentRegime <http://www.w3.org/ns/entailment/RDFS> .

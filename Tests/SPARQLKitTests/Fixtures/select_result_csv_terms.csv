@@ -1,2 +1,2 @@
-iri,bnode,typed,triple,label
-<http://example.org/r>,_:b1,"""42""^^<http://www.w3.org/2001/XMLSchema#integer>","<<( <http://example.org/alice> <http://example.org/name> ""Alice""^^<http://www.w3.org/2001/XMLSchema#string> )>>","""chat""@fr--ltr"
+iri,bnode,typed,label
+http://example.org/r,_:b1,42,chat

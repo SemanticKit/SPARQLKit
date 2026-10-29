@@ -1,232 +1,70 @@
 import Foundation
-import SemanticKit
+import RDFCore
+import RDFFormats
+import RDFKit
 
+/// Decodes SPARQL 1.2 Query Results CSV and TSV documents.
+///
+/// TSV writes every term in its Turtle form (SPARQL 1.2 Query Results CSV and
+/// TSV Formats §4.1), so each TSV field is read by RDFFormats'
+/// ``TurtleDecoder``. CSV writes only the lexical form of a term (§3.1), so a
+/// CSV field is a simple literal: the format does not say which kind of term
+/// it was.
 public struct SPARQLDelimitedResultsDecoder: Sendable {
     public init() {}
 
-    public func decodeCSV(_ data: Data, normalizeTerms: Bool = false) throws -> SPARQLResultSet {
+    /// Decodes a CSV results document. Every value is a simple literal.
+    public func decodeCSV(_ data: Data) throws -> SPARQLResultSet {
         guard let content = String(data: data, encoding: .utf8) else {
             throw SPARQLError.decodingFailure("CSV content is not UTF-8.")
         }
-        let rows = try parseCSV(content)
-        return try decodeRows(rows, normalizeCSVTerms: normalizeTerms)
+        return try decodeRows(try parseCSV(content)) { .literal(try Literal($0)) }
     }
 
+    /// Decodes a TSV results document.
     public func decodeTSV(_ data: Data) throws -> SPARQLResultSet {
         guard let content = String(data: data, encoding: .utf8) else {
             throw SPARQLError.decodingFailure("TSV content is not UTF-8.")
         }
-
-        let lines = content
-            .split(whereSeparator: \ .isNewline)
-            .map(String.init)
-
-        let rows = lines.map { $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
-        return try decodeRows(rows, tsvMode: true)
+        let rows = content
+            .split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+            .map { $0.split(separator: "\t", omittingEmptySubsequences: false).map(String.init) }
+        return try decodeRows(rows, decodeTSVTerm)
     }
 
     private func decodeRows(
         _ rows: [[String]],
-        tsvMode: Bool = false,
-        normalizeCSVTerms: Bool = false
+        _ decodeTerm: (String) throws -> ObjectTerm
     ) throws -> SPARQLResultSet {
-        guard let header = rows.first, !header.isEmpty else {
+        guard let header = rows.first, !header.allSatisfy(\.isEmpty) else {
             throw SPARQLError.decodingFailure("Missing header row.")
         }
-
-        let variables = header.map { Variable(rawValue: $0) }
+        let variables = header.map { Variable($0) }
         var bindings: [Binding] = []
-
         for row in rows.dropFirst() where !row.allSatisfy(\.isEmpty) {
             var binding: Binding = [:]
-            for (index, variable) in variables.enumerated() {
-                guard index < row.count else {
-                    continue
-                }
-                let value = row[index]
-                guard !value.isEmpty else {
-                    continue
-                }
-
-                if tsvMode {
-                    binding[variable] = try decodeTerm(value, tsvMode: true)
-                } else if normalizeCSVTerms {
-                    binding[variable] = try decodeTerm(value, tsvMode: false)
-                } else {
-                    binding[variable] = try .literal(value)
-                }
+            for (variable, field) in zip(variables, row) where !field.isEmpty {
+                binding[variable] = try decodeTerm(field)
             }
             bindings.append(binding)
         }
-
         return SPARQLResultSet(variables: variables, bindings: bindings)
     }
 
-    private func decodeTerm(_ token: String, tsvMode: Bool) throws -> RDFTerm {
-        if token == "UNDEF" {
-            return try .literal(token)
+    /// A TSV field, which is a term in Turtle syntax, read as the object of a
+    /// one-triple Turtle document.
+    private func decodeTSVTerm(_ field: String) throws -> ObjectTerm {
+        let carrier = "<" + RDF.value.metadata.id.rawValue + ">"
+        let triples: [DecodedTriple]
+        do {
+            triples = try TurtleDecoder().decode(carrier + " " + carrier + " " + field + " .")
+        } catch {
+            throw SPARQLError.decodingFailure("TSV field \(field) is not a term: \(error)")
         }
-
-        if token.hasPrefix("<<("), token.hasSuffix(")>>") {
-            return try decodeTripleTerm(token, tsvMode: tsvMode)
+        guard triples.count == 1, let triple = triples.first else {
+            throw SPARQLError.decodingFailure("TSV field \(field) is not a single term.")
         }
-
-        if token.hasPrefix("<"), token.hasSuffix(">") {
-            return try .iri(String(token.dropFirst().dropLast()))
-        }
-        if token.hasPrefix("_:") {
-            return try .blankNode(String(token.dropFirst(2)))
-        }
-        if token.hasPrefix("\"") {
-            if let languageRange = token.range(of: "\"@", options: .backwards),
-               token.starts(with: "\""),
-               languageRange.lowerBound > token.startIndex
-            {
-                let lexical = String(token[token.index(after: token.startIndex) ..< languageRange.lowerBound])
-                let languageToken = String(token[languageRange.upperBound...])
-                let (language, direction) = splitLanguageAndDirection(languageToken)
-                return try .literal(
-                    tsvMode ? unescapeTSVLiteral(lexical) : lexical,
-                    language: language,
-                    direction: direction
-                )
-            }
-
-            if let datatypeRange = token.range(of: "\"^^<", options: .backwards),
-               token.hasSuffix(">"),
-               datatypeRange.lowerBound > token.startIndex
-            {
-                let lexical = String(token[token.index(after: token.startIndex) ..< datatypeRange.lowerBound])
-                let datatypeStart = datatypeRange.upperBound
-                let datatypeEnd = token.index(before: token.endIndex)
-                let datatype = String(token[datatypeStart ..< datatypeEnd])
-                let normalizedLexical = tsvMode ? unescapeTSVLiteral(lexical) : lexical
-                return try .literal(normalizedLexical, datatype: datatype)
-            }
-
-            if token.hasSuffix("\""), token.count >= 2 {
-                let lexical = String(token.dropFirst().dropLast())
-                let normalizedLexical = tsvMode ? unescapeTSVLiteral(lexical) : lexical
-                return try .literal(normalizedLexical)
-            }
-        }
-        return try .literal(token)
-    }
-
-    private func decodeTripleTerm(_ token: String, tsvMode: Bool) throws -> RDFTerm {
-        let core = String(token.dropFirst(3).dropLast(3)).trimmingCharacters(in: .whitespaces)
-        let components = try splitTripleComponents(core)
-        guard components.count == 3 else {
-            throw SPARQLError.decodingFailure("Invalid TSV triple term payload: expected 3 components.")
-        }
-
-        let subjectTerm = try decodeTerm(components[0], tsvMode: tsvMode)
-        let predicateTerm = try decodeTerm(components[1], tsvMode: tsvMode)
-        let objectTerm = try decodeTerm(components[2], tsvMode: tsvMode)
-
-        guard let subjectNode = subjectTerm.node as? any SemanticKit.RDFSubject else {
-            throw SPARQLError.decodingFailure("TSV triple term subject must be IRI or blank node.")
-        }
-        guard let predicateIRI = predicateTerm.node as? IRI else {
-            throw SPARQLError.decodingFailure("TSV triple term predicate must be an IRI.")
-        }
-
-        let triple = RDFTripleTerm(
-            subject: try RDFSubject(subjectNode),
-            predicate: predicateIRI,
-            object: RDFTerm(objectTerm.node)
-        )
-        return RDFTerm(triple)
-    }
-
-    private func splitTripleComponents(_ raw: String) throws -> [String] {
-        var components: [String] = []
-        var current = ""
-        var index = raw.startIndex
-
-        var quoted = false
-        var escaped = false
-        var nestedTripleDepth = 0
-
-        while index < raw.endIndex {
-            if raw[index...].hasPrefix("<<(") {
-                nestedTripleDepth += 1
-                current.append(contentsOf: "<<(")
-                index = raw.index(index, offsetBy: 3)
-                continue
-            }
-
-            if raw[index...].hasPrefix(")>>"), nestedTripleDepth > 0 {
-                nestedTripleDepth -= 1
-                current.append(contentsOf: ")>>")
-                index = raw.index(index, offsetBy: 3)
-                continue
-            }
-
-            let char = raw[index]
-
-            if quoted {
-                current.append(char)
-                if escaped {
-                    escaped = false
-                } else if char == "\\" {
-                    escaped = true
-                } else if char == "\"" {
-                    quoted = false
-                }
-                index = raw.index(after: index)
-                continue
-            }
-
-            if char == "\"" {
-                quoted = true
-                current.append(char)
-                index = raw.index(after: index)
-                continue
-            }
-
-            if nestedTripleDepth == 0 && char.isWhitespace {
-                if !current.isEmpty {
-                    components.append(current)
-                    current = ""
-                }
-                while index < raw.endIndex, raw[index].isWhitespace {
-                    index = raw.index(after: index)
-                }
-                continue
-            }
-
-            current.append(char)
-            index = raw.index(after: index)
-        }
-
-        if !current.isEmpty {
-            components.append(current)
-        }
-
-        if quoted || nestedTripleDepth != 0 {
-            throw SPARQLError.decodingFailure("Invalid TSV triple term payload.")
-        }
-
-        return components
-    }
-
-    private func unescapeTSVLiteral(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "\\\"", with: "\"")
-            .replacingOccurrences(of: "\\t", with: "\t")
-            .replacingOccurrences(of: "\\n", with: "\n")
-            .replacingOccurrences(of: "\\r", with: "\r")
-    }
-
-    private func splitLanguageAndDirection(_ token: String) -> (String, TextDirection?) {
-        let pieces = token.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false)
-        if pieces.count == 3, pieces[1].isEmpty {
-            let language = String(pieces[0])
-            let direction = TextDirection(rawValue: String(pieces[2]).lowercased())
-            return (language, direction)
-        }
-        return (token, nil)
+        return triple.object
     }
 
     private func parseCSV(_ content: String) throws -> [[String]] {
@@ -236,63 +74,52 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
         var inQuotes = false
         var iterator = content.makeIterator()
 
-        while let char = iterator.next() {
-            switch char {
-            case "\"":
-                if inQuotes {
-                    if let next = iterator.next() {
-                        if next == "\"" {
-                            cell.append("\"")
-                        } else {
-                            inQuotes = false
-                            processCSVNonQuoteCharacter(next, row: &row, cell: &cell, rows: &rows)
-                        }
-                    } else {
-                        inQuotes = false
-                    }
-                } else {
-                    inQuotes = true
-                }
-            default:
-                if inQuotes {
-                    cell.append(char)
-                } else {
-                    processCSVNonQuoteCharacter(char, row: &row, cell: &cell, rows: &rows)
-                }
+        func endCell() {
+            row.append(cell)
+            cell = ""
+        }
+        func endRow() {
+            endCell()
+            rows.append(row)
+            row = []
+        }
+        func plain(_ character: Character) {
+            switch character {
+            case ",": endCell()
+            case "\n", "\r\n": endRow()
+            case "\r": break
+            default: cell.append(character)
             }
         }
 
+        while let character = iterator.next() {
+            if character == "\"" {
+                guard inQuotes else {
+                    inQuotes = true
+                    continue
+                }
+                guard let next = iterator.next() else {
+                    inQuotes = false
+                    break
+                }
+                if next == "\"" {
+                    cell.append("\"")
+                } else {
+                    inQuotes = false
+                    plain(next)
+                }
+            } else if inQuotes {
+                cell.append(character)
+            } else {
+                plain(character)
+            }
+        }
         if inQuotes {
             throw SPARQLError.decodingFailure("Unterminated quoted CSV value.")
         }
-
         if !cell.isEmpty || !row.isEmpty {
-            row.append(cell)
-            rows.append(row)
+            endRow()
         }
-
         return rows
-    }
-
-    private func processCSVNonQuoteCharacter(
-        _ char: Character,
-        row: inout [String],
-        cell: inout String,
-        rows: inout [[String]]
-    ) {
-        switch char {
-        case ",":
-            row.append(cell)
-            cell = ""
-        case "\n":
-            row.append(cell)
-            rows.append(row)
-            row = []
-            cell = ""
-        case "\r":
-            break
-        default:
-            cell.append(char)
-        }
     }
 }

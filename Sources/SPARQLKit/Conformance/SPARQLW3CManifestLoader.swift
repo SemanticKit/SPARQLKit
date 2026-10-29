@@ -1,5 +1,7 @@
 import Foundation
-import SemanticKit
+import IRIKit
+import RDFCore
+import RDFFormats
 import RDFKit
 
 public enum SPARQLW3CManifestError: Error, Equatable, Sendable {
@@ -10,70 +12,13 @@ public enum SPARQLW3CManifestError: Error, Equatable, Sendable {
     case missingIncludeResolver
 }
 
+/// Reads W3C test manifests into a ``SPARQLConformanceSuite``.
+///
+/// A manifest is Turtle, read by RDFFormats' ``TurtleDecoder``. The terms it
+/// is written in are the generated terms of ``TestManifest``, ``QueryTest``,
+/// ``UpdateTest`` and ``SPARQLConformance``; each test's type IRI becomes the
+/// operation it names as the manifest is read.
 public struct SPARQLW3CManifestLoader {
-    private enum Vocabulary {
-        static let mfNamespace = "http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#"
-        static let qtNamespace = "http://www.w3.org/2001/sw/DataAccess/tests/test-query#"
-        static let utNamespace = "http://www.w3.org/2009/sparql/tests/test-update#"
-        static let skNamespace = "https://codex.local/sparqlkit/conformance#"
-
-        static let manifest = iri("\(mfNamespace)Manifest")
-        static let entries = iri("\(mfNamespace)entries")
-        static let include = iri("\(mfNamespace)include")
-        static let name = iri("\(mfNamespace)name")
-        static let action = iri("\(mfNamespace)action")
-        static let result = iri("\(mfNamespace)result")
-        static let qtQuery = iri("\(qtNamespace)query")
-        static let qtData = iri("\(qtNamespace)data")
-        static let qtGraphData = iri("\(qtNamespace)graphData")
-        static let qtGraph = iri("\(qtNamespace)graph")
-        static let utRequest = iri("\(utNamespace)request")
-        static let utData = iri("\(utNamespace)data")
-        static let utGraphData = iri("\(utNamespace)graphData")
-        static let utGraph = iri("\(utNamespace)graph")
-        static let queryEvaluationTest = iri("\(mfNamespace)QueryEvaluationTest")
-        static let updateEvaluationTest = iri("\(mfNamespace)UpdateEvaluationTest")
-        static let csvResultFormatTest = iri("\(mfNamespace)CSVResultFormatTest")
-        static let xmlResultFormatTest = iri("\(mfNamespace)XMLResultFormatTest")
-        static let jsonResultFormatTest = iri("\(mfNamespace)JSONResultFormatTest")
-
-        static let operation = iri("\(skNamespace)operation")
-        static let queryTemplate = iri("\(skNamespace)queryTemplate")
-        static let query = iri("\(skNamespace)query")
-        static let update = iri("\(skNamespace)update")
-        static let defaultGraphURI = iri("\(skNamespace)defaultGraphURI")
-        static let namedGraphURI = iri("\(skNamespace)namedGraphURI")
-        static let usingGraphURI = iri("\(skNamespace)usingGraphURI")
-        static let usingNamedGraphURI = iri("\(skNamespace)usingNamedGraphURI")
-        static let expectVariableCount = iri("\(skNamespace)expectVariableCount")
-        static let expectBindingCount = iri("\(skNamespace)expectBindingCount")
-        static let expectBoolean = iri("\(skNamespace)expectBoolean")
-        static let expectContains = iri("\(skNamespace)expectContains")
-        static let expectURLContains = iri("\(skNamespace)expectURLContains")
-        static let expectBodyContains = iri("\(skNamespace)expectBodyContains")
-        static let expectHeaderContains = iri("\(skNamespace)expectHeaderContains")
-
-        static let decodeJSONBindingsTest = iri("\(skNamespace)DecodeJSONBindingsTest")
-        static let decodeJSONBooleanTest = iri("\(skNamespace)DecodeJSONBooleanTest")
-        static let decodeXMLBindingsTest = iri("\(skNamespace)DecodeXMLBindingsTest")
-        static let decodeXMLBooleanTest = iri("\(skNamespace)DecodeXMLBooleanTest")
-        static let decodeCSVBindingsTest = iri("\(skNamespace)DecodeCSVBindingsTest")
-        static let decodeTSVBindingsTest = iri("\(skNamespace)DecodeTSVBindingsTest")
-        static let renderQueryTest = iri("\(skNamespace)RenderQueryTest")
-        static let protocolGetQueryRequestTest = iri("\(skNamespace)ProtocolGetQueryRequestTest")
-        static let protocolPostQueryRequestTest = iri("\(skNamespace)ProtocolPostQueryRequestTest")
-        static let protocolPostUpdateRequestTest = iri("\(skNamespace)ProtocolPostUpdateRequestTest")
-        static let graphStoreGetDefaultRequestTest = iri("\(skNamespace)GraphStoreGetDefaultRequestTest")
-        static let graphStoreHeadNamedRequestTest = iri("\(skNamespace)GraphStoreHeadNamedRequestTest")
-        static let graphStorePostServiceRequestTest = iri("\(skNamespace)GraphStorePostServiceRequestTest")
-        static let graphStorePutNamedRequestTest = iri("\(skNamespace)GraphStorePutNamedRequestTest")
-        static let graphStoreDeleteNamedRequestTest = iri("\(skNamespace)GraphStoreDeleteNamedRequestTest")
-
-        static func iri(_ raw: String) -> IRI {
-            try! IRI(raw)
-        }
-    }
-
     public init() {}
 
     public func loadSuite(
@@ -84,11 +29,7 @@ public struct SPARQLW3CManifestLoader {
         guard let turtle = String(data: data, encoding: .utf8) else {
             throw SPARQLConformanceError.assertionFailed("Manifest is not UTF-8 Turtle.")
         }
-        return try loadSuite(
-            turtle: turtle,
-            baseURL: baseURL,
-            loadIncludedManifest: loadIncludedManifest
-        )
+        return try loadSuite(turtle: turtle, baseURL: baseURL, loadIncludedManifest: loadIncludedManifest)
     }
 
     public func loadSuite(
@@ -96,336 +37,228 @@ public struct SPARQLW3CManifestLoader {
         baseURL: URL? = nil,
         loadIncludedManifest: ((String) throws -> Data)? = nil
     ) throws -> SPARQLConformanceSuite {
-        let baseIRI = try baseURL.flatMap { try IRI($0.absoluteString) }
-        let graph = try Graph(turtle: turtle, baseIRI: baseIRI)
+        let base = baseURL.flatMap { IRI(rawValue: $0.absoluteString) }
+        let graph = ManifestGraph(triples: try TurtleDecoder(base: base).decode(turtle))
 
-        let manifestSubject = try findManifestSubject(in: graph)
-        let suiteName = literalValue(
-            firstObject(in: graph, subject: manifestSubject, predicate: Vocabulary.name)
-        ) ?? "W3C conformance subset"
+        guard let manifest = graph.subjects(
+            RDF.type<any RDFCore.Resource>.metadata.id,
+            TestManifest.ManifestIndividual.metadata.id
+        ).first else {
+            throw SPARQLW3CManifestError.missingManifestNode
+        }
+        let name = graph.literal(manifest, TestManifest.name.metadata.id) ?? "W3C conformance subset"
 
-        if let entriesHead = firstObject(in: graph, subject: manifestSubject, predicate: Vocabulary.entries) {
-            let entryNodes = try expandRDFList(startingAt: entriesHead, in: graph)
-            let cases = try entryNodes.map { try parseCase(from: $0, in: graph) }
-            return SPARQLConformanceSuite(name: suiteName, cases: cases)
+        if let entries = graph.object(manifest, TestManifest.entries.metadata.id) {
+            let cases = try graph.list(entries).map { entry in
+                guard let node = entry.subject else {
+                    throw SPARQLW3CManifestError.malformedEntry("An mf:entries item is not a node.")
+                }
+                return try parseCase(node, in: graph)
+            }
+            return SPARQLConformanceSuite(name: name, cases: cases)
         }
 
-        if let includeHead = firstObject(in: graph, subject: manifestSubject, predicate: Vocabulary.include) {
+        if let includes = graph.object(manifest, TestManifest.include.metadata.id) {
             guard let loadIncludedManifest else {
                 throw SPARQLW3CManifestError.missingIncludeResolver
             }
-
-            let includeTerms = try expandRDFListTerms(startingAt: includeHead, in: graph)
-            var mergedCases: [SPARQLConformanceCase] = []
-
-            for includeTerm in includeTerms {
-                guard let includeIRI = includeTerm.node as? IRI else {
+            var cases: [SPARQLConformanceCase] = []
+            for include in try graph.list(includes) {
+                guard case .iri(let included) = include else {
                     throw SPARQLW3CManifestError.malformedEntry("mf:include list item must be an IRI.")
                 }
-
-                let includeURL = URL(string: includeIRI.string, relativeTo: baseURL)?.absoluteURL
-                let includeFile = fileName(from: includeIRI)
-                let includeData = try loadIncludedManifest(includeFile)
-                let childSuite = try loadSuite(
-                    from: includeData,
-                    baseURL: includeURL,
+                let child = try loadSuite(
+                    from: try loadIncludedManifest(fileName(of: included)),
+                    baseURL: URL(string: included.rawValue),
                     loadIncludedManifest: loadIncludedManifest
                 )
-                mergedCases.append(contentsOf: childSuite.cases)
+                cases += child.cases
             }
-
-            return SPARQLConformanceSuite(name: suiteName, cases: mergedCases)
+            return SPARQLConformanceSuite(name: name, cases: cases)
         }
 
         throw SPARQLW3CManifestError.missingEntries
     }
 
-    private func findManifestSubject(in graph: Graph) throws -> RDFSubject {
-        for triple in graph.triples where triple.predicate == RDF.Vocabulary.type {
-            if let typeIRI = triple.object.node as? IRI, typeIRI == Vocabulary.manifest {
-                return triple.subject
+    private func parseCase(_ node: SubjectTerm, in graph: ManifestGraph) throws -> SPARQLConformanceCase {
+        let id = identifier(of: node)
+        let operation = try parseOperation(node, in: graph)
+        let action = graph.object(node, TestManifest.action.metadata.id)?.subject
+
+        func literals(_ predicate: IRI) -> [String] {
+            graph.objects(node, predicate).compactMap(\.lexicalForm)
+        }
+        func iris(_ predicate: IRI) throws -> [IRI] {
+            try literals(predicate).map { text in
+                guard let iri = IRI(rawValue: text) else {
+                    throw SPARQLW3CManifestError.malformedEntry("\(id): <\(text)> is not an absolute IRI.")
+                }
+                return iri
             }
         }
-        throw SPARQLW3CManifestError.missingManifestNode
-    }
+        func actionIRIs(_ predicate: IRI) -> [IRI] {
+            action.map { graph.iris($0, predicate) } ?? []
+        }
+        func actionNamedGraphs(_ graphData: IRI, _ graphName: IRI) -> [IRI] {
+            guard let action else { return [] }
+            return graph.objects(action, graphData).flatMap { data -> [IRI] in
+                switch data {
+                case .iri(let iri): [iri]
+                case .blankNode(let node): graph.iris(.blankNode(node), graphName)
+                case .literal, .tripleTerm: []
+                }
+            }
+        }
 
-    private func parseCase(from node: RDFSubject, in graph: Graph) throws -> SPARQLConformanceCase {
-        let id = identifier(for: node)
-
-        let operation = try parseOperation(from: node, in: graph)
-        let fixtureFile = try resolveFixtureFile(for: node, in: graph)
-
-        let queryTemplate = literalValue(
-            firstObject(in: graph, subject: node, predicate: Vocabulary.queryTemplate)
-        ).flatMap(SPARQLConformanceQueryTemplate.init(rawValue:))
-        let queryText = literalValue(
-            firstObject(in: graph, subject: node, predicate: Vocabulary.query)
-        )
-        let updateText = literalValue(
-            firstObject(in: graph, subject: node, predicate: Vocabulary.update)
-        )
-        var defaultGraphURIs = objects(in: graph, subject: node, predicate: Vocabulary.defaultGraphURI).compactMap(literalValue)
-        var namedGraphURIs = objects(in: graph, subject: node, predicate: Vocabulary.namedGraphURI).compactMap(literalValue)
-        var usingGraphURIs = objects(in: graph, subject: node, predicate: Vocabulary.usingGraphURI).compactMap(literalValue)
-        var usingNamedGraphURIs = objects(in: graph, subject: node, predicate: Vocabulary.usingNamedGraphURI).compactMap(literalValue)
-
-        let inferred = try resolveActionDatasets(for: node, in: graph)
-        defaultGraphURIs.append(contentsOf: inferred.defaultGraphURIs)
-        namedGraphURIs.append(contentsOf: inferred.namedGraphURIs)
-        usingGraphURIs.append(contentsOf: inferred.usingGraphURIs)
-        usingNamedGraphURIs.append(contentsOf: inferred.usingNamedGraphURIs)
-
-        let expectVariableCount = intLiteralValue(
-            firstObject(in: graph, subject: node, predicate: Vocabulary.expectVariableCount)
-        )
-        let expectBindingCount = intLiteralValue(
-            firstObject(in: graph, subject: node, predicate: Vocabulary.expectBindingCount)
-        )
-        let expectBoolean = boolLiteralValue(
-            firstObject(in: graph, subject: node, predicate: Vocabulary.expectBoolean)
-        )
-
-        let expectContains = objects(in: graph, subject: node, predicate: Vocabulary.expectContains)
-            .compactMap(literalValue)
-        let expectURLContains = objects(in: graph, subject: node, predicate: Vocabulary.expectURLContains)
-            .compactMap(literalValue)
-        let expectBodyContains = objects(in: graph, subject: node, predicate: Vocabulary.expectBodyContains)
-            .compactMap(literalValue)
-        let expectHeaderContains = objects(in: graph, subject: node, predicate: Vocabulary.expectHeaderContains)
-            .compactMap(literalValue)
-
-        if operation == .renderQuery, queryTemplate == nil {
+        let template = graph.literal(node, SPARQLConformance.queryTemplate.metadata.id)
+            .flatMap(SPARQLConformanceQueryTemplate.init(rawValue:))
+        if operation == .renderQuery, template == nil {
             throw SPARQLW3CManifestError.malformedEntry("\(id): render query case missing sk:queryTemplate")
         }
 
         return SPARQLConformanceCase(
             id: id,
             operation: operation,
-            fixtureFile: fixtureFile,
-            queryTemplate: queryTemplate,
-            queryText: queryText,
-            updateText: updateText,
-            defaultGraphURIs: defaultGraphURIs,
-            namedGraphURIs: namedGraphURIs,
-            usingGraphURIs: usingGraphURIs,
-            usingNamedGraphURIs: usingNamedGraphURIs,
-            expectVariableCount: expectVariableCount,
-            expectBindingCount: expectBindingCount,
-            expectBoolean: expectBoolean,
-            expectContains: expectContains,
-            expectURLContains: expectURLContains,
-            expectBodyContains: expectBodyContains,
-            expectHeaderContains: expectHeaderContains
+            fixtureFile: fixtureFile(of: node, action: action, in: graph),
+            queryTemplate: template,
+            queryText: graph.literal(node, SPARQLConformance.query.metadata.id),
+            updateText: graph.literal(node, SPARQLConformance.update.metadata.id),
+            defaultGraphs: try iris(SPARQLConformance.defaultGraphURI.metadata.id)
+                + actionIRIs(QueryTest.data.metadata.id),
+            namedGraphs: try iris(SPARQLConformance.namedGraphURI.metadata.id)
+                + actionNamedGraphs(QueryTest.graphData.metadata.id, QueryTest.graph.metadata.id),
+            usingGraphs: try iris(SPARQLConformance.usingGraphURI.metadata.id)
+                + actionIRIs(UpdateTest.data.metadata.id),
+            usingNamedGraphs: try iris(SPARQLConformance.usingNamedGraphURI.metadata.id)
+                + actionNamedGraphs(UpdateTest.graphData.metadata.id, UpdateTest.graph.metadata.id),
+            expectVariableCount: graph.literal(node, SPARQLConformance.expectVariableCount.metadata.id).flatMap { Int($0) },
+            expectBindingCount: graph.literal(node, SPARQLConformance.expectBindingCount.metadata.id).flatMap { Int($0) },
+            expectBoolean: graph.literal(node, SPARQLConformance.expectBoolean.metadata.id).flatMap { Bool($0.lowercased()) },
+            expectContains: literals(SPARQLConformance.expectContains.metadata.id),
+            expectURLContains: literals(SPARQLConformance.expectURLContains.metadata.id),
+            expectBodyContains: literals(SPARQLConformance.expectBodyContains.metadata.id),
+            expectHeaderContains: literals(SPARQLConformance.expectHeaderContains.metadata.id)
         )
     }
 
-    private func parseOperation(from node: RDFSubject, in graph: Graph) throws -> SPARQLConformanceOperation {
-        if let explicit = literalValue(firstObject(in: graph, subject: node, predicate: Vocabulary.operation)),
-           let op = SPARQLConformanceOperation(rawValue: explicit)
-        {
-            return op
+    /// The operation a case's `sk:operation` or type names.
+    private func parseOperation(_ node: SubjectTerm, in graph: ManifestGraph) throws -> SPARQLConformanceOperation {
+        if let explicit = graph.literal(node, SPARQLConformance.operation.metadata.id),
+           let operation = SPARQLConformanceOperation(rawValue: explicit) {
+            return operation
         }
-
-        let types = objects(in: graph, subject: node, predicate: RDF.Vocabulary.type)
-            .compactMap { $0.node as? IRI }
-
-        if types.contains(Vocabulary.decodeJSONBindingsTest) { return .decodeJSONBindings }
-        if types.contains(Vocabulary.decodeJSONBooleanTest) { return .decodeJSONBoolean }
-        if types.contains(Vocabulary.decodeXMLBindingsTest) { return .decodeXMLBindings }
-        if types.contains(Vocabulary.decodeXMLBooleanTest) { return .decodeXMLBoolean }
-        if types.contains(Vocabulary.decodeCSVBindingsTest) { return .decodeCSVBindings }
-        if types.contains(Vocabulary.decodeTSVBindingsTest) { return .decodeTSVBindings }
-        if types.contains(Vocabulary.renderQueryTest) { return .renderQuery }
-        if types.contains(Vocabulary.protocolGetQueryRequestTest) { return .buildGETQueryRequest }
-        if types.contains(Vocabulary.protocolPostQueryRequestTest) { return .buildPOSTQueryRequest }
-        if types.contains(Vocabulary.protocolPostUpdateRequestTest) { return .buildPOSTUpdateRequest }
-        if types.contains(Vocabulary.graphStoreGetDefaultRequestTest) { return .buildGETDefaultGraphStoreRequest }
-        if types.contains(Vocabulary.graphStoreHeadNamedRequestTest) { return .buildHEADNamedGraphStoreRequest }
-        if types.contains(Vocabulary.graphStorePostServiceRequestTest) { return .buildPOSTServiceGraphStoreRequest }
-        if types.contains(Vocabulary.graphStorePutNamedRequestTest) { return .buildPUTNamedGraphStoreRequest }
-        if types.contains(Vocabulary.graphStoreDeleteNamedRequestTest) { return .buildDELETENamedGraphStoreRequest }
-        if types.contains(Vocabulary.queryEvaluationTest) {
-            if let query = literalValue(firstObject(in: graph, subject: node, predicate: Vocabulary.query)) {
-                let leading = query.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-                if leading.hasPrefix("CONSTRUCT") || leading.hasPrefix("DESCRIBE") {
-                    return .buildPOSTGraphQueryRequest
-                }
+        for type in graph.iris(node, RDF.type<any RDFCore.Resource>.metadata.id) {
+            if let operation = operation(ofType: type, node: node, in: graph) {
+                return operation
             }
-            return .buildPOSTQueryRequest
         }
-        if types.contains(Vocabulary.updateEvaluationTest) { return .buildPOSTUpdateRequest }
-        if types.contains(Vocabulary.csvResultFormatTest) { return .decodeCSVBindings }
-        if types.contains(Vocabulary.xmlResultFormatTest) { return .decodeXMLBindings }
-        if types.contains(Vocabulary.jsonResultFormatTest) { return .decodeJSONBindings }
-
-        throw SPARQLW3CManifestError.unsupportedOperation(identifier(for: node))
+        throw SPARQLW3CManifestError.unsupportedOperation(identifier(of: node))
     }
 
-    private func resolveFixtureFile(for node: RDFSubject, in graph: Graph) throws -> String? {
-        if let result = iriObject(in: graph, subject: node, predicate: Vocabulary.result) {
-            return fileName(from: result)
-        }
-
-        guard let action = firstObject(in: graph, subject: node, predicate: Vocabulary.action) else {
-            return nil
-        }
-
-        if let actionIRI = action.node as? IRI {
-            return fileName(from: actionIRI)
-        }
-
-        guard let actionNode = action.node as? any SemanticKit.RDFSubject else {
-            return nil
-        }
-        let actionSubject = try RDFSubject(actionNode)
-
-        if let queryIRI = iriObject(in: graph, subject: actionSubject, predicate: Vocabulary.qtQuery) {
-            return fileName(from: queryIRI)
-        }
-        if let requestIRI = iriObject(in: graph, subject: actionSubject, predicate: Vocabulary.utRequest) {
-            return fileName(from: requestIRI)
-        }
-
-        return nil
-    }
-
-    private func resolveActionDatasets(
-        for node: RDFSubject,
-        in graph: Graph
-    ) throws -> (defaultGraphURIs: [String], namedGraphURIs: [String], usingGraphURIs: [String], usingNamedGraphURIs: [String]) {
-        guard let action = firstObject(in: graph, subject: node, predicate: Vocabulary.action),
-              let actionNode = action.node as? any SemanticKit.RDFSubject
-        else {
-            return ([], [], [], [])
-        }
-
-        let actionSubject = try RDFSubject(actionNode)
-        let queryDefault = iriObjects(in: graph, subject: actionSubject, predicate: Vocabulary.qtData).map(\.string)
-        let queryNamed = try namedGraphIRIs(
-            in: graph,
-            subject: actionSubject,
-            graphDataPredicate: Vocabulary.qtGraphData,
-            graphPredicate: Vocabulary.qtGraph
-        )
-        let updateDefault = iriObjects(in: graph, subject: actionSubject, predicate: Vocabulary.utData).map(\.string)
-        let updateNamed = try namedGraphIRIs(
-            in: graph,
-            subject: actionSubject,
-            graphDataPredicate: Vocabulary.utGraphData,
-            graphPredicate: Vocabulary.utGraph
-        )
-
-        return (
-            defaultGraphURIs: queryDefault,
-            namedGraphURIs: queryNamed,
-            usingGraphURIs: updateDefault,
-            usingNamedGraphURIs: updateNamed
-        )
-    }
-
-    private func namedGraphIRIs(
-        in graph: Graph,
-        subject: RDFSubject,
-        graphDataPredicate: IRI,
-        graphPredicate: IRI
-    ) throws -> [String] {
-        var result: [String] = []
-        for term in objects(in: graph, subject: subject, predicate: graphDataPredicate) {
-            guard let node = term.node as? any SemanticKit.RDFSubject else {
-                continue
-            }
-            let bnodeSubject = try RDFSubject(node)
-            result.append(contentsOf: iriObjects(in: graph, subject: bnodeSubject, predicate: graphPredicate).map(\.string))
-        }
-        return result
-    }
-
-    private func expandRDFList(startingAt head: RDFTerm, in graph: Graph) throws -> [RDFSubject] {
-        let terms = try expandRDFListTerms(startingAt: head, in: graph)
-        return try terms.map { term in
-            guard let subjectNode = term.node as? any SemanticKit.RDFSubject else {
-                throw SPARQLW3CManifestError.malformedEntry("RDF list item is not a valid subject.")
-            }
-            return try RDFSubject(subjectNode)
+    private func operation(ofType type: IRI, node: SubjectTerm, in graph: ManifestGraph) -> SPARQLConformanceOperation? {
+        switch type {
+        case SPARQLConformance.DecodeJSONBindingsTestIndividual.metadata.id: .decodeJSONBindings
+        case SPARQLConformance.DecodeJSONBooleanTestIndividual.metadata.id: .decodeJSONBoolean
+        case SPARQLConformance.DecodeXMLBindingsTestIndividual.metadata.id: .decodeXMLBindings
+        case SPARQLConformance.DecodeXMLBooleanTestIndividual.metadata.id: .decodeXMLBoolean
+        case SPARQLConformance.DecodeCSVBindingsTestIndividual.metadata.id: .decodeCSVBindings
+        case SPARQLConformance.DecodeTSVBindingsTestIndividual.metadata.id: .decodeTSVBindings
+        case SPARQLConformance.RenderQueryTestIndividual.metadata.id: .renderQuery
+        case SPARQLConformance.ProtocolGetQueryRequestTestIndividual.metadata.id: .buildGETQueryRequest
+        case SPARQLConformance.ProtocolPostQueryRequestTestIndividual.metadata.id: .buildPOSTQueryRequest
+        case SPARQLConformance.ProtocolPostUpdateRequestTestIndividual.metadata.id: .buildPOSTUpdateRequest
+        case SPARQLConformance.GraphStoreGetDefaultRequestTestIndividual.metadata.id: .buildGETDefaultGraphStoreRequest
+        case SPARQLConformance.GraphStoreHeadNamedRequestTestIndividual.metadata.id: .buildHEADNamedGraphStoreRequest
+        case SPARQLConformance.GraphStorePostServiceRequestTestIndividual.metadata.id: .buildPOSTServiceGraphStoreRequest
+        case SPARQLConformance.GraphStorePutNamedRequestTestIndividual.metadata.id: .buildPUTNamedGraphStoreRequest
+        case SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual.metadata.id: .buildDELETENamedGraphStoreRequest
+        case TestManifest.QueryEvaluationTestIndividual.metadata.id:
+            graph.literal(node, SPARQLConformance.query.metadata.id).map(SPARQLConformanceRunner.isGraphQuery) == true
+                ? .buildPOSTGraphQueryRequest
+                : .buildPOSTQueryRequest
+        case TestManifest.UpdateEvaluationTestIndividual.metadata.id: .buildPOSTUpdateRequest
+        case TestManifest.CSVResultFormatTestIndividual.metadata.id: .decodeCSVBindings
+        default: nil
         }
     }
 
-    private func expandRDFListTerms(startingAt head: RDFTerm, in graph: Graph) throws -> [RDFTerm] {
-        var terms: [RDFTerm] = []
-        var cursor = head
-
-        while true {
-            if let iri = cursor.node as? IRI, iri == RDF.Vocabulary.nilValue {
-                return terms
-            }
-
-            guard let listNode = cursor.node as? any SemanticKit.RDFSubject else {
-                throw SPARQLW3CManifestError.malformedEntry("List node is not a valid RDF subject.")
-            }
-            let listSubject = try RDFSubject(listNode)
-
-            guard let first = firstObject(in: graph, subject: listSubject, predicate: RDF.Vocabulary.first) else {
-                throw SPARQLW3CManifestError.malformedEntry("Malformed mf:entries RDF list: missing rdf:first.")
-            }
-            terms.append(first)
-
-            guard let rest = firstObject(in: graph, subject: listSubject, predicate: RDF.Vocabulary.rest) else {
-                throw SPARQLW3CManifestError.malformedEntry("Malformed mf:entries RDF list: missing rdf:rest.")
-            }
-            cursor = rest
+    /// The document a case reads: its `mf:result`, or the query or update its
+    /// `mf:action` names.
+    private func fixtureFile(of node: SubjectTerm, action: SubjectTerm?, in graph: ManifestGraph) -> String? {
+        if let result = graph.iris(node, TestManifest.result.metadata.id).first {
+            return fileName(of: result)
         }
-    }
-
-    private func objects(in graph: Graph, subject: RDFSubject, predicate: IRI) -> [RDFTerm] {
-        graph.triples
-            .filter { $0.subject == subject && $0.predicate == predicate }
-            .map(\.object)
-    }
-
-    private func firstObject(in graph: Graph, subject: RDFSubject, predicate: IRI) -> RDFTerm? {
-        objects(in: graph, subject: subject, predicate: predicate).first
-    }
-
-    private func iriObject(in graph: Graph, subject: RDFSubject, predicate: IRI) -> IRI? {
-        firstObject(in: graph, subject: subject, predicate: predicate)?.node as? IRI
-    }
-
-    private func iriObjects(in graph: Graph, subject: RDFSubject, predicate: IRI) -> [IRI] {
-        objects(in: graph, subject: subject, predicate: predicate).compactMap { $0.node as? IRI }
-    }
-
-    private func literalValue(_ object: RDFTerm?) -> String? {
-        guard let literal = object?.node as? Literal else {
-            return nil
+        if case .iri(let document)? = graph.object(node, TestManifest.action.metadata.id) {
+            return fileName(of: document)
         }
-        return literal.lexicalForm
+        guard let action else { return nil }
+        let document = graph.iris(action, QueryTest.query.metadata.id).first
+            ?? graph.iris(action, UpdateTest.request.metadata.id).first
+        return document.map(fileName(of:))
     }
 
-    private func intLiteralValue(_ object: RDFTerm?) -> Int? {
-        guard let raw = literalValue(object) else {
-            return nil
-        }
-        return Int(raw)
+    private func fileName(of iri: IRI) -> String {
+        URL(string: iri.rawValue)?.lastPathComponent ?? iri.rawValue
     }
 
-    private func boolLiteralValue(_ object: RDFTerm?) -> Bool? {
-        guard let raw = literalValue(object)?.lowercased() else {
-            return nil
-        }
-        return raw == "true" ? true : (raw == "false" ? false : nil)
-    }
-
-    private func fileName(from iri: IRI) -> String {
-        URL(string: iri.string)?.lastPathComponent ?? iri.string
-    }
-
-    private func identifier(for node: RDFSubject) -> String {
-        if let iri = node.node as? IRI {
-            return URL(string: iri.string)?.lastPathComponent ?? iri.string
-        }
-        if let blank = node.node as? BlankNode {
+    private func identifier(of node: SubjectTerm) -> String {
+        switch node {
+        case .iri(let iri):
+            if let fragment = URL(string: iri.rawValue)?.fragment { return fragment }
+            return fileName(of: iri)
+        case .blankNode(let blank):
             return blank.identifier
         }
-        return node.description
+    }
+}
+
+/// A decoded manifest, read by pattern.
+struct ManifestGraph {
+    let triples: [DecodedTriple]
+
+    func subjects(_ predicate: IRI, _ object: IRI) -> [SubjectTerm] {
+        triples.filter { $0.predicate == predicate && $0.object == .iri(object) }.map(\.subject)
+    }
+
+    func objects(_ subject: SubjectTerm, _ predicate: IRI) -> [ObjectTerm] {
+        triples.filter { $0.subject == subject && $0.predicate == predicate }.map(\.object)
+    }
+
+    func object(_ subject: SubjectTerm, _ predicate: IRI) -> ObjectTerm? {
+        triples.first { $0.subject == subject && $0.predicate == predicate }?.object
+    }
+
+    func iris(_ subject: SubjectTerm, _ predicate: IRI) -> [IRI] {
+        objects(subject, predicate).compactMap { object in
+            if case .iri(let iri) = object { return iri }
+            return nil
+        }
+    }
+
+    func literal(_ subject: SubjectTerm, _ predicate: IRI) -> String? {
+        object(subject, predicate)?.lexicalForm
+    }
+
+    /// The members of an `rdf:first` / `rdf:rest` list.
+    func list(_ head: ObjectTerm) throws -> [ObjectTerm] {
+        var members: [ObjectTerm] = []
+        var node = head
+        while node != .iri(type(of: RDF.nil).metadata.id) {
+            guard let cell = node.subject,
+                  let first = object(cell, RDF.first.metadata.id),
+                  let rest = object(cell, RDF.rest.metadata.id) else {
+                throw SPARQLW3CManifestError.malformedEntry("Malformed RDF list: missing rdf:first or rdf:rest.")
+            }
+            members.append(first)
+            node = rest
+        }
+        return members
+    }
+}
+
+private extension ObjectTerm {
+    var lexicalForm: String? {
+        if case .literal(let literal) = self { return literal.lexicalForm }
+        return nil
     }
 }
