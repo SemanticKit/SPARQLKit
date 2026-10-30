@@ -6,7 +6,7 @@ public enum SPARQLProjection: Hashable, Sendable, ExpressibleByStringLiteral {
     case expression(SPARQLExpression, as: Variable)
 
     public init(stringLiteral value: String) {
-        self = .variable(Variable(value))
+        self = .variable(Variable(stringLiteral: value))
     }
 
     /// The variable this entry projects.

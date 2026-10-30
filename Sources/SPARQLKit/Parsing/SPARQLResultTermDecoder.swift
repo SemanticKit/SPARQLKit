@@ -9,6 +9,17 @@ import RDFKit
 /// This is where the IRIs a results document carries enter the runtime: each
 /// is validated as an absolute IRI.
 struct SPARQLResultTermDecoder {
+    /// A variable named in a results header or binding. A name that is not a
+    /// `VARNAME` (SPARQL 1.2 Query Language §19.8) is rejected here, so no
+    /// results document can put text into a later query through a variable.
+    func variable(_ name: String) throws -> Variable {
+        do {
+            return try Variable(name)
+        } catch {
+            throw SPARQLError.decodingFailure("'\(name)' is not a SPARQL variable name.")
+        }
+    }
+
     func iri(_ text: String) throws -> ObjectTerm {
         .iri(try decodeIRI(text))
     }
@@ -59,6 +70,15 @@ struct SPARQLResultTermDecoder {
             throw SPARQLError.decodingFailure("A triple term's predicate must be an IRI.")
         }
         return .tripleTerm(TripleTermValue(subject: subject, predicate: predicate, object: object))
+    }
+
+    /// The declared individual among `candidates` that an IRI names: the
+    /// one whose generated type's metadata carries that IRI. This is where a
+    /// decoded IRI becomes the generated term it names.
+    func individual<Individual>(named iri: IRI, among candidates: [Individual]) -> Individual? {
+        candidates.first { candidate in
+            (candidate as? any RDFCore.Entity).map { type(of: $0).metadata.id == iri } ?? false
+        }
     }
 
     private func decodeIRI(_ text: String) throws -> IRI {

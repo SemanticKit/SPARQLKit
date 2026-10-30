@@ -4,6 +4,7 @@ import FoundationNetworking
 #endif
 import IRIKit
 import RDFFormats
+import RDFKit
 
 public struct SPARQLConformanceSuite: Codable, Sendable {
     public let name: String
@@ -282,7 +283,7 @@ public struct SPARQLConformanceRunner {
         case .buildGETQueryRequest:
             let query = try requireQueryText(testCase, loadFixture: loadFixture)
             let client = makeProtocolClient()
-            let accept = requestAcceptHeader(forQuery: query)
+            let accept = SPARQLAccept.jsonResults.rawValue
             let request = try client.makeQueryRequest(
                 query,
                 accept: accept,
@@ -297,7 +298,7 @@ public struct SPARQLConformanceRunner {
         case .buildPOSTQueryRequest:
             let query = try requireQueryText(testCase, loadFixture: loadFixture)
             let client = makeProtocolClient()
-            let accept = requestAcceptHeader(forQuery: query)
+            let accept = SPARQLAccept.jsonResults.rawValue
             let request = try client.makeQueryRequest(
                 query,
                 accept: accept,
@@ -418,7 +419,7 @@ public struct SPARQLConformanceRunner {
         case .basicSelect:
             let query = SPARQLSelectQuery(
                 ["s", "o"],
-                where: [.triple(SPARQLTriplePattern(.variable("s"), .iri("http://example.org/p"), .variable("o")))],
+                where: [.triple(SPARQLTriplePattern(.variable("s"), .property(RDF.value.sparql), .variable("o")))],
                 limit: 5
             )
             return query.render()
@@ -499,21 +500,6 @@ public struct SPARQLConformanceRunner {
             return iri
         }
         throw SPARQLConformanceError.assertionFailed("Case \(testCase.id): missing named graph IRI for graph-store request.")
-    }
-
-    private func requestAcceptHeader(forQuery query: String) -> String {
-        Self.isGraphQuery(query) ? SPARQLGraphAccept.turtle.rawValue : SPARQLAccept.jsonResults.rawValue
-    }
-
-    /// Whether a W3C test's query text is a `CONSTRUCT` or `DESCRIBE` query,
-    /// so its request asks for a graph media type. The text is the test
-    /// suite's own, sent to the endpoint as the suite wrote it.
-    static func isGraphQuery(_ query: String) -> Bool {
-        let form = query
-            .split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces).uppercased() }
-            .first { !$0.isEmpty && !$0.hasPrefix("#") && !$0.hasPrefix("PREFIX") && !$0.hasPrefix("BASE") }
-        return form.map { $0.hasPrefix("CONSTRUCT") || $0.hasPrefix("DESCRIBE") } ?? false
     }
 
     /// The triple a graph store case sends.

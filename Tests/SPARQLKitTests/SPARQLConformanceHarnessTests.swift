@@ -71,15 +71,21 @@ struct SPARQLConformanceHarnessTests {
                 expectBodyContains: ["query=DESCRIBE%20%3Chttp%3A%2F%2Fexample.org%2Fs%3E", "named-graph-uri=https%3A%2F%2Fexample.org%2Fgraph%2Fnamed"]
             ),
             SPARQLConformanceCase(
-                id: "construct-after-prologue",
-                operation: .buildPOSTQueryRequest,
-                queryText: "PREFIX ex: <http://example.org/>\nCONSTRUCT { ?s ex:p ?o . } WHERE { ?s ex:p ?o . }",
+                id: "construct-after-one-line-prologue",
+                operation: .buildPOSTGraphQueryRequest,
+                queryText: "PREFIX ex: <http://example.org/> CONSTRUCT { ?s ex:p ?o } WHERE { ?s ex:p ?o }",
                 expectHeaderContains: ["Accept:text/turtle"]
+            ),
+            SPARQLConformanceCase(
+                id: "results-query",
+                operation: .buildPOSTQueryRequest,
+                queryText: "PREFIX ex: <http://example.org/> SELECT * WHERE { ?s ex:p ?o }",
+                expectHeaderContains: ["Accept:application/sparql-results+json"]
             )
         ])
         let report = runner.run(suite: suite, loadFixture: fixture)
 
-        #expect(report.results.count == 3)
+        #expect(report.results.count == 4)
         #expect(report.allPassed, "\(report.results.compactMap(\.message))")
     }
 

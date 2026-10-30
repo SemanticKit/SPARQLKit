@@ -11,4 +11,6 @@ extension Tag {
     @Tag static var conformance: Self
     /// Vocabularies declared with the DSL.
     @Tag static var vocabulary: Self
+    /// Input that must not change the request it ends up in.
+    @Tag static var security: Self
 }

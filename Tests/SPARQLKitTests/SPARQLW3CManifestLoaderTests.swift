@@ -194,25 +194,33 @@ struct SPARQLW3CManifestLoaderTests {
     }
 
     @Test
-    func w3cManifestLoaderInfersGraphQueryOperationForMfQueryEvaluationWithConstructQuery() throws {
+    func w3cManifestLoaderTakesTheResultKindOfAQueryEvaluationFromItsResultDocument() throws {
         let turtle = """
         @prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
         @prefix sk: <https://codex.local/sparqlkit/conformance#> .
 
         <https://example.org/manifests/mf-query-graph-inference> a mf:Manifest ;
-           mf:entries ( <#query-eval-construct> ) .
+           mf:entries ( <#query-eval-construct> <#query-eval-select> ) .
 
         <#query-eval-construct> a mf:QueryEvaluationTest ;
-          sk:query "CONSTRUCT { ?s ?p ?o . } WHERE { ?s ?p ?o . }" ;
-          sk:expectBodyContains "query=CONSTRUCT" .
+          mf:result <construct_result_turtle.ttl> ;
+          sk:query "PREFIX ex: <http://example.org/> CONSTRUCT { ?s ex:p ?o } WHERE { ?s ex:p ?o }" ;
+          sk:expectBodyContains "query=PREFIX" ;
+          sk:expectHeaderContains "Accept:text/turtle" .
+
+        <#query-eval-select> a mf:QueryEvaluationTest ;
+          mf:result <select_result.srj> ;
+          sk:query "CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }" ;
+          sk:expectHeaderContains "Accept:application/sparql-results+json" .
         """
 
         let suite = try SPARQLW3CManifestLoader().loadSuite(
             turtle: turtle,
             baseURL: URL(string: "https://example.org/manifests/mf-query-graph-inference.ttl")
         )
-        #expect(suite.cases.count == 1)
+        #expect(suite.cases.count == 2)
         #expect(suite.cases[0].operation == .buildPOSTGraphQueryRequest)
+        #expect(suite.cases[1].operation == .buildPOSTQueryRequest)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try fixture(fileName)
@@ -230,8 +238,8 @@ struct SPARQLW3CManifestLoaderTests {
            mf:entries ( <#construct-case> ) .
 
         <#construct-case> a sk:ProtocolPostQueryRequestTest ;
-          sk:query "CONSTRUCT { ?s ?p ?o . } WHERE { ?s ?p ?o . }" ;
-          sk:expectHeaderContains "Accept:text/turtle" .
+          sk:query "SELECT * WHERE { ?s ?p ?o . }" ;
+          sk:expectHeaderContains "Accept:application/sparql-results+json" .
         """
 
         let suite = try SPARQLW3CManifestLoader().loadSuite(
@@ -239,7 +247,7 @@ struct SPARQLW3CManifestLoaderTests {
             baseURL: URL(string: "https://example.org/manifests/header-expect.ttl")
         )
         #expect(suite.cases.count == 1)
-        #expect(suite.cases[0].expectHeaderContains == ["Accept:text/turtle"])
+        #expect(suite.cases[0].expectHeaderContains == ["Accept:application/sparql-results+json"])
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try fixture(fileName)

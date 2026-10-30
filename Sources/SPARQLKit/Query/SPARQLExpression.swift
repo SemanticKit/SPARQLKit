@@ -5,7 +5,9 @@ import RDFCore
 public indirect enum SPARQLExpression: Hashable, Sendable {
     /// A variable.
     case variable(Variable)
-    /// An IRI.
+    /// A term declared in an `@Ontology`, held as its generated type.
+    case term(SPARQLTerm)
+    /// A resource whose identity is external to the runtime, named by its IRI.
     case iri(IRI)
     /// A literal.
     case literal(Literal)
@@ -19,8 +21,9 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
     case notIn(SPARQLExpression, [SPARQLExpression])
     /// A built-in call such as `STRLEN(?name)` (§17.4).
     case builtIn(SPARQLBuiltInFunction, [SPARQLExpression])
-    /// A call to a function named by an IRI, such as an XSD cast (§17.5, §17.6).
-    case function(IRI, [SPARQLExpression])
+    /// A call to a function declared in an `@Ontology`, such as the XSD
+    /// cast `XSD.integer.sparql` (§17.5, §17.6).
+    case function(SPARQLTerm, [SPARQLExpression])
     /// An aggregate over a group (§18.5.1). `COUNT` with no operand is `COUNT(*)`.
     case aggregate(SPARQLAggregate, distinct: Bool, SPARQLExpression?)
     /// `EXISTS { pattern }` (§8.1.1).
@@ -34,7 +37,7 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
         switch self {
         case .variable(let variable):
             [variable]
-        case .iri, .literal:
+        case .term, .iri, .literal:
             []
         case .unary(_, let operand):
             operand.variables
@@ -56,6 +59,8 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
         switch self {
         case .variable(let variable):
             return writer.write(variable)
+        case .term(let term):
+            return writer.write(term)
         case .iri(let iri):
             return writer.write(iri)
         case .literal(let literal):
@@ -70,8 +75,8 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
             return "(" + operand.render() + " NOT IN (" + list.map { $0.render() }.joined(separator: ", ") + "))"
         case .builtIn(let function, let arguments):
             return function.rawValue + "(" + arguments.map { $0.render() }.joined(separator: ", ") + ")"
-        case .function(let iri, let arguments):
-            return writer.write(iri) + "(" + arguments.map { $0.render() }.joined(separator: ", ") + ")"
+        case .function(let function, let arguments):
+            return writer.write(function) + "(" + arguments.map { $0.render() }.joined(separator: ", ") + ")"
         case .aggregate(let aggregate, let distinct, let operand):
             var text = aggregate.keyword + "("
             if distinct { text += "DISTINCT " }

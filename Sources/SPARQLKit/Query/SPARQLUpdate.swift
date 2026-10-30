@@ -1,5 +1,4 @@
 import IRIKit
-import RDFFormats
 
 /// The graphs a `CLEAR` or `DROP` operation acts on
 /// (SPARQL 1.2 Update §3.2.2, `GraphRefAll`).
@@ -35,11 +34,15 @@ public enum SPARQLGraphReference: Hashable, Sendable {
 
 /// One operation of an update request (SPARQL 1.2 Update §3).
 public enum SPARQLUpdateOperation: Hashable, Sendable {
-    /// `INSERT DATA`, into the default graph or a named graph (§3.1.1).
-    case insertData([DecodedTriple], graph: IRI? = nil)
-    /// `DELETE DATA`, from the default graph or a named graph (§3.1.2).
-    case deleteData([DecodedTriple], graph: IRI? = nil)
-    /// `[WITH g] DELETE { … } INSERT { … } WHERE { … }` (§3.1.3).
+    /// `INSERT DATA`, into the default graph or a named graph (§3.1.1). The
+    /// triples are ground: no variables and no property paths.
+    case insertData([SPARQLTriplePattern], graph: IRI? = nil)
+    /// `DELETE DATA`, from the default graph or a named graph (§3.1.2). The
+    /// triples are ground and hold no blank nodes.
+    case deleteData([SPARQLTriplePattern], graph: IRI? = nil)
+    /// `[WITH g] DELETE { … } INSERT { … } WHERE { … }` (§3.1.3). The
+    /// templates hold no property paths, and the `DELETE` template no blank
+    /// nodes.
     case modify(with: IRI? = nil, delete: [SPARQLTriplePattern], insert: [SPARQLTriplePattern], where: [SPARQLPattern])
     /// `LOAD` (§3.1.4).
     case load(IRI, into: IRI? = nil, silent: Bool = false)
@@ -56,17 +59,49 @@ public enum SPARQLUpdateOperation: Hashable, Sendable {
     /// `ADD` (§3.2.5).
     case add(from: SPARQLGraphReference, to: SPARQLGraphReference, silent: Bool = false)
 
+    /// Checks the operation against the grammar (SPARQL 1.2 Query Language
+    /// §19.8). `QuadData` is ground ("Variables are not allowed in
+    /// QuadData"); "Blank node syntax is not allowed in DELETE WHERE, the
+    /// DeleteClause for DELETE, nor in DELETE DATA"; and `QuadPattern`
+    /// templates are triples, not property paths.
+    func validate() throws {
+        func check(_ triples: [SPARQLTriplePattern], ground: Bool, blankNodes: Bool, _ name: String) throws {
+            for triple in triples {
+                if triple.verb.isPath {
+                    throw SPARQLError.invalidRequest("\(name) cannot hold a property path.")
+                }
+                if ground, !triple.variables.isEmpty {
+                    throw SPARQLError.invalidRequest("\(name) holds ground triples only, not variables.")
+                }
+                if !blankNodes, triple.subject.containsBlankNode || triple.object.containsBlankNode {
+                    throw SPARQLError.invalidRequest("\(name) cannot hold a blank node.")
+                }
+            }
+        }
+        switch self {
+        case .insertData(let triples, _):
+            try check(triples, ground: true, blankNodes: true, "INSERT DATA")
+        case .deleteData(let triples, _):
+            try check(triples, ground: true, blankNodes: false, "DELETE DATA")
+        case .modify(_, let delete, let insert, _):
+            try check(delete, ground: false, blankNodes: false, "A DELETE template")
+            try check(insert, ground: false, blankNodes: true, "An INSERT template")
+        case .load, .clear, .create, .drop, .copy, .move, .add:
+            break
+        }
+    }
+
     func render() -> String {
         let writer = SPARQLTermWriter()
         var lines = SPARQLLines()
-        func data(_ keyword: String, _ triples: [DecodedTriple], _ graph: IRI?) {
+        func data(_ keyword: String, _ triples: [SPARQLTriplePattern], _ graph: IRI?) {
             lines.block(keyword) { lines in
                 if let graph {
                     lines.block("GRAPH " + writer.write(graph)) { lines in
-                        for triple in triples { lines.append(writer.write(triple)) }
+                        for triple in triples { lines.append(triple.render()) }
                     }
                 } else {
-                    for triple in triples { lines.append(writer.write(triple)) }
+                    for triple in triples { lines.append(triple.render()) }
                 }
             }
         }
@@ -107,9 +142,12 @@ public enum SPARQLUpdateOperation: Hashable, Sendable {
 
 /// An update request: a sequence of operations (SPARQL 1.2 Update §3).
 public struct SPARQLUpdateRequest: SPARQLQueryRenderable, Hashable {
-    public var operations: [SPARQLUpdateOperation]
+    public let operations: [SPARQLUpdateOperation]
 
-    public init(_ operations: [SPARQLUpdateOperation]) {
+    /// - Throws: ``SPARQLError/invalidRequest(_:)`` when an operation breaks
+    ///   the SPARQL 1.2 Update grammar, such as a blank node in `DELETE DATA`.
+    public init(_ operations: [SPARQLUpdateOperation]) throws {
+        for operation in operations { try operation.validate() }
         self.operations = operations
     }
 

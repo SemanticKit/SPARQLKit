@@ -1,6 +1,7 @@
 import IRIKit
 import RDFCore
 import RDFFormats
+import RDFKit
 
 /// An IRI term.
 func iri(_ value: IRI) -> ObjectTerm {
@@ -27,4 +28,5 @@ func triple(_ subject: IRI, _ predicate: IRI, _ object: ObjectTerm) -> ObjectTer
     .tripleTerm(TripleTermValue(subject: .iri(subject), predicate: predicate, object: object))
 }
 
-let xsdInteger: IRI = "http://www.w3.org/2001/XMLSchema#integer"
+/// `xsd:integer`, at the boundary where decoded literals carry it.
+let xsdInteger: IRI = XSD.integer.metadata.id

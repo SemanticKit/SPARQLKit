@@ -105,8 +105,8 @@ Legend:
 - [x] `REQ-RES-CSVTSV-003` Handle empty/unbound variable cells correctly.
 - [x] `REQ-RES-CSVTSV-004` Decode triple terms in TSV rows (`<<(... )>>`).
 - [x] `REQ-RES-CSVTSV-005` Decode directional language-tagged literals in TSV (`@lang--dir`).
-- [x] `REQ-RES-CSVTSV-006` CSV term normalization for triple terms beyond lossy string mode.
-  - CSV values decode as simple literals, as the CSV format carries no term types; TSV fields decode through RDFKit's `TurtleDecoder`.
+- [x] `REQ-RES-CSVTSV-006` Lossy CSV decoding as Query Results CSV and TSV Formats §3 defines it.
+  - CSV writes only a term's string form (§3.1), so every CSV value decodes as a simple literal; the format does not say which kind of term it was. TSV fields keep their term kind and decode through RDFFormats' `TurtleDecoder`.
 
 ## 5) Federated Query Requirements (`SRC-FED`)
 
@@ -156,7 +156,9 @@ Legend:
   - Every execution API (`executeSelect`, `executeAsk`, `executeGraphQuery` and `executeUpdate`) takes those options.
 - [x] `REQ-SEC-001` Injection-resistant query/update parameter handling.
   - Form-urlencoded serialization percent-encodes query/update values and dataset URI parameters to prevent parameter-smuggling via reserved characters.
-  - Endpoint and graph-store clients reject header names/values containing control characters (CR/LF/control-byte injection hardening).
+  - Endpoint and graph-store clients reject header names/values containing control characters (CR/LF/control-byte injection hardening). This covers default headers, the `Authorization` header and the Graph Store conditional headers (`If-Match`, `If-None-Match`, `If-Unmodified-Since`, `If-Modified-Since`), which all go through `SPARQLHTTPTransport.setHeader`.
+  - Variable names are checked against `VARNAME` and blank node labels against `BLANK_NODE_LABEL` (Query Language §19.8) when they are created, and results decoders reject a header or binding variable that is not a `VARNAME`, so no name can carry text into a rendered query.
+  - Typed queries and updates refuse what the grammar does not allow: negative `LIMIT`/`OFFSET` (unsigned types), `VALUES` rows of the wrong width or holding variables or blank nodes, a `GRAPH` name that is not an IRI or variable, `DESCRIBE` of a literal, property paths in templates, variables in `INSERT DATA`/`DELETE DATA`, and blank nodes in `DELETE DATA` and `DELETE` templates.
 - [x] `REQ-I18N-001` Language tags and Unicode preserved across all decoders/encoders.
   - Added explicit Unicode + language-tag preservation tests for JSON/XML/TSV decoders and SPARQL literal rendering.
 - [x] `REQ-ROBUST-001` W3C conformance fixture harness and regression runner.
@@ -167,10 +169,10 @@ Legend:
   - Added graph-query protocol request-construction conformance operations for GET/POST with graph accept media types.
   - Added graph-store protocol request-construction conformance operations for default-graph GET, named-graph HEAD, and service-level POST.
   - Added graph-store protocol request-construction conformance operations for named-graph PUT and named-graph DELETE.
-  - `mf:QueryEvaluationTest` mapping now infers graph-query request construction when inline query text is `CONSTRUCT`/`DESCRIBE`.
+  - `mf:QueryEvaluationTest` mapping takes graph-query request construction from the test's `mf:result` document: an RDF document (`.ttl`, `.nt`, `.rdf`, `.jsonld`) means a graph, a results document a results query. The query text is not read.
   - Manifest loader now resolves W3C-style blank-node `mf:action` forms for query/update fixtures (`qt:query`, `ut:request`).
   - Manifest loader now infers query/update dataset URIs from blank-node `mf:action` forms (`qt:data`, `qt:graphData/qt:graph`, `ut:data`, `ut:graphData/ut:graph`).
-  - Conformance runner now supports request-header assertions and auto-selects graph accept media type for generic query-request operations when query text is `CONSTRUCT`/`DESCRIBE`.
+  - Conformance runner supports request-header assertions. Query-request operations ask for SPARQL results and graph-query operations for Turtle; the operation, decided by the manifest, picks the media type.
   - Coverage includes canonical manifest class mappings plus W3C-style action blank-node forms sufficient for current regression corpus ingestion.
 
 ## 10) Test Plan Checklist
@@ -221,7 +223,7 @@ Legend:
 - [x] `TEST-047` W3C manifest loader mapping coverage for graph-store request test classes.
 - [x] `TEST-048` Env-gated graph-store named `HEAD` integration round-trip coverage.
 - [x] `TEST-049` Env-gated entailment multi-regime execution coverage with optional result-difference assertion.
-- [x] `TEST-050` W3C manifest loader inference coverage for graph-query protocol operation mapping from `mf:QueryEvaluationTest` with inline `CONSTRUCT` query text.
+- [x] `TEST-050` W3C manifest loader coverage for graph-query protocol operation mapping from the `mf:result` document of an `mf:QueryEvaluationTest`, including a one-line prologue followed by `CONSTRUCT`.
 - [x] `TEST-051` Env-gated cross-endpoint entailment behavior coverage with optional result-difference assertion.
 - [x] `TEST-052` W3C manifest loader blank-node `mf:action` fixture-resolution coverage (`qt:query`, `ut:request`) with runner execution.
 - [x] `TEST-053` Conformance runner graph-store mutation request coverage (`PUT` named graph, `DELETE` named graph).
@@ -229,9 +231,9 @@ Legend:
 - [x] `TEST-055` W3C manifest loader blank-node `mf:action` dataset inference coverage for query dataset parameters (`qt:data`, `qt:graphData/qt:graph`) with runner validation.
 - [x] `TEST-056` W3C manifest loader blank-node `mf:action` dataset inference coverage for update dataset parameters (`ut:data`, `ut:graphData/ut:graph`) with runner validation.
 - [x] `TEST-057` W3C manifest loader blank-node `mf:action` dataset inference coverage for query and update dataset parameter propagation into protocol request construction assertions.
-- [x] `TEST-058` Conformance runner generic query-request graph-accept auto-selection coverage (`CONSTRUCT`/`DESCRIBE` -> graph media accept header).
+- [x] `TEST-058` Conformance runner accept-header coverage: graph-query operations send `text/turtle` (including a one-line prologue followed by `CONSTRUCT`), query operations send `application/sparql-results+json`.
 - [x] `TEST-059` W3C manifest loader + runner header-expectation coverage (`sk:expectHeaderContains`).
-- [x] `TEST-030` CSV term normalization coverage for IRI/bnode/typed/directional/triple terms.
+- [x] `TEST-030` CSV decoding coverage: every CSV value decodes as a simple literal (Query Results CSV and TSV Formats §3.1), including quoted, escaped and empty fields.
 - [x] `TEST-031` Subquery scope/shadowing validation coverage (projected vs non-projected variables, nested leakage).
 - [x] `TEST-032` Update endpoint routing coverage (fallback to query endpoint + explicit update endpoint precedence).
 - [x] `TEST-033` Typed query-form endpoint execution coverage (`executeAsk`, `executeSelect`, `executeGraphQuery`).

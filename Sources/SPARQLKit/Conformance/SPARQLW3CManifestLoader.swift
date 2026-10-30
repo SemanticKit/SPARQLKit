@@ -173,13 +173,22 @@ public struct SPARQLW3CManifestLoader {
         case SPARQLConformance.GraphStorePutNamedRequestTestIndividual.metadata.id: .buildPUTNamedGraphStoreRequest
         case SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual.metadata.id: .buildDELETENamedGraphStoreRequest
         case TestManifest.QueryEvaluationTestIndividual.metadata.id:
-            graph.literal(node, SPARQLConformance.query.metadata.id).map(SPARQLConformanceRunner.isGraphQuery) == true
-                ? .buildPOSTGraphQueryRequest
-                : .buildPOSTQueryRequest
+            expectsGraph(node, in: graph) ? .buildPOSTGraphQueryRequest : .buildPOSTQueryRequest
         case TestManifest.UpdateEvaluationTestIndividual.metadata.id: .buildPOSTUpdateRequest
         case TestManifest.CSVResultFormatTestIndividual.metadata.id: .decodeCSVBindings
         default: nil
         }
+    }
+
+    /// Whether a query evaluation test expects a graph: its `mf:result` is
+    /// an RDF document (Turtle, N-Triples, RDF/XML, JSON-LD) rather than a
+    /// results document (`.srj`, `.srx`, `.csv`, `.tsv`). The W3C SPARQL test
+    /// suites name each result document with the extension of its format;
+    /// the manifest, not the query text, says what the query returns.
+    private func expectsGraph(_ node: SubjectTerm, in graph: ManifestGraph) -> Bool {
+        guard let result = graph.iris(node, TestManifest.result.metadata.id).first,
+              let url = URL(string: result.rawValue) else { return false }
+        return ["ttl", "nt", "rdf", "jsonld"].contains(url.pathExtension.lowercased())
     }
 
     /// The document a case reads: its `mf:result`, or the query or update its

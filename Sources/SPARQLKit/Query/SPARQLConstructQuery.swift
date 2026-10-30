@@ -8,8 +8,8 @@ public struct SPARQLConstructQuery: SPARQLGraphQuery, Hashable {
     public var fromNamedGraphs: [IRI]
     public var patterns: [SPARQLPattern]
     public var orderBy: [SPARQLOrderCondition]
-    public var limit: Int?
-    public var offset: Int?
+    public var limit: UInt?
+    public var offset: UInt?
 
     public init(
         _ template: [SPARQLTriplePattern],
@@ -17,9 +17,14 @@ public struct SPARQLConstructQuery: SPARQLGraphQuery, Hashable {
         fromNamedGraphs: [IRI] = [],
         where patterns: [SPARQLPattern],
         orderBy: [SPARQLOrderCondition] = [],
-        limit: Int? = nil,
-        offset: Int? = nil
-    ) {
+        limit: UInt? = nil,
+        offset: UInt? = nil
+    ) throws {
+        // ConstructTemplate is built from TriplesSameSubject, whose verbs are
+        // `VarOrIri | 'a'` (SPARQL 1.2 Query Language §19.8): no paths.
+        for pattern in template where pattern.verb.isPath {
+            throw SPARQLError.invalidRequest("A CONSTRUCT template cannot hold a property path.")
+        }
         self.template = template
         self.fromGraphs = fromGraphs
         self.fromNamedGraphs = fromNamedGraphs

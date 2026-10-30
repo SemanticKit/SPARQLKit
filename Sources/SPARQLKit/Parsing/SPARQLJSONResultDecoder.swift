@@ -38,10 +38,11 @@ public struct SPARQLJSONResultDecoder: Sendable {
                 throw SPARQLError.decodingFailure("Missing head/results in JSON bindings payload.")
             }
 
-            let variables = (head.vars ?? []).map { Variable($0) }
+            let terms = SPARQLResultTermDecoder()
+            let variables = try (head.vars ?? []).map(terms.variable)
             let bindings = try results.bindings.map { row in
                 try row.reduce(into: Binding()) { partial, entry in
-                    partial[Variable(entry.key)] = try entry.value.asTerm
+                    partial[try terms.variable(entry.key)] = try entry.value.asTerm
                 }
             }
             let resultSet = SPARQLResultSet(variables: variables, bindings: bindings, version: announcedVersion)

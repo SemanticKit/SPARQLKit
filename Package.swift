@@ -35,7 +35,8 @@ let package = Package(
                 "SPARQLKit",
                 .product(name: "IRIKit", package: "IRIKit"),
                 .product(name: "RDFCore", package: "RDFKit"),
-                .product(name: "RDFFormats", package: "RDFKit")
+                .product(name: "RDFFormats", package: "RDFKit"),
+                .product(name: "RDFKit", package: "RDFKit")
             ],
             resources: [.process("Fixtures")]
         ),
@@ -45,7 +46,8 @@ let package = Package(
                 "SPARQLKit",
                 .product(name: "IRIKit", package: "IRIKit"),
                 .product(name: "RDFCore", package: "RDFKit"),
-                .product(name: "RDFFormats", package: "RDFKit")
+                .product(name: "RDFFormats", package: "RDFKit"),
+                .product(name: "RDFKit", package: "RDFKit")
             ]
         )
     ]

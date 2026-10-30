@@ -15,8 +15,8 @@ public struct SPARQLSelectQuery: SPARQLResultsQuery, Hashable {
     public var groupBy: [Variable]
     public var having: [SPARQLExpression]
     public var orderBy: [SPARQLOrderCondition]
-    public var limit: Int?
-    public var offset: Int?
+    public var limit: UInt?
+    public var offset: UInt?
 
     public init(
         _ projection: [SPARQLProjection] = [],
@@ -28,8 +28,8 @@ public struct SPARQLSelectQuery: SPARQLResultsQuery, Hashable {
         groupBy: [Variable] = [],
         having: [SPARQLExpression] = [],
         orderBy: [SPARQLOrderCondition] = [],
-        limit: Int? = nil,
-        offset: Int? = nil
+        limit: UInt? = nil,
+        offset: UInt? = nil
     ) {
         self.projection = projection
         self.distinct = distinct

@@ -85,7 +85,11 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
         switch name {
         case "variable":
             if let variableName = attributeDict["name"] {
-                variables.append(Variable(variableName))
+                do {
+                    variables.append(try SPARQLResultTermDecoder().variable(variableName))
+                } catch {
+                    fail(parser, "'\(variableName)' is not a SPARQL variable name.")
+                }
             }
 
         case "result":
@@ -251,7 +255,7 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
             throw SPARQLError.decodingFailure("Term appeared outside of a binding in XML results.")
         }
 
-        currentBinding[Variable(variableName)] = term
+        currentBinding[try SPARQLResultTermDecoder().variable(variableName)] = term
     }
 
     private func finalizeLeafTerm(_ partial: XMLPartialTerm) throws -> ObjectTerm {

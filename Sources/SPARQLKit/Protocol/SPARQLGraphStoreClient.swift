@@ -81,8 +81,8 @@ public struct SPARQLGraphStoreClient: Sendable {
         conditional: SPARQLConditionalRequest? = nil
     ) async throws -> Set<DecodedTriple> {
         let request = try makeRequest(method: "GET", graph: graph, accept: accept.rawValue, conditional: conditional)
-        let (data, _) = try await transport.perform(request)
-        return try SPARQLGraphResultDecoder().decode(data, as: accept)
+        let (data, response) = try await transport.perform(request)
+        return try SPARQLGraphResultDecoder().decode(data, as: accept, base: transport.retrievalIRI(of: response, for: request))
     }
 
     /// `HEAD`: the response headers of a `GET`.
@@ -163,10 +163,10 @@ public struct SPARQLGraphStoreClient: Sendable {
         if let contentType { request.setValue(contentType, forHTTPHeaderField: "Content-Type") }
         try transport.applyHeaders(to: &request)
         if let conditional {
-            request.setValue(conditional.ifMatch, forHTTPHeaderField: "If-Match")
-            request.setValue(conditional.ifNoneMatch, forHTTPHeaderField: "If-None-Match")
-            request.setValue(conditional.ifUnmodifiedSince, forHTTPHeaderField: "If-Unmodified-Since")
-            request.setValue(conditional.ifModifiedSince, forHTTPHeaderField: "If-Modified-Since")
+            try transport.setHeader("If-Match", conditional.ifMatch, on: &request)
+            try transport.setHeader("If-None-Match", conditional.ifNoneMatch, on: &request)
+            try transport.setHeader("If-Unmodified-Since", conditional.ifUnmodifiedSince, on: &request)
+            try transport.setHeader("If-Modified-Since", conditional.ifModifiedSince, on: &request)
         }
         return request
     }

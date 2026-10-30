@@ -1,9 +1,7 @@
-import IRIKit
-
 /// A property path (SPARQL 1.2 Query Language §9).
 public indirect enum SPARQLPropertyPath: Hashable, Sendable {
-    /// A path of length one through a predicate.
-    case iri(IRI)
+    /// A path of length one through a property declared in an `@Ontology`.
+    case property(SPARQLTerm)
     /// `^path`
     case inverse(SPARQLPropertyPath)
     /// `path1 / path2`
@@ -21,8 +19,8 @@ public indirect enum SPARQLPropertyPath: Hashable, Sendable {
 
     func render() -> String {
         switch self {
-        case .iri(let iri):
-            return SPARQLTermWriter().write(iri)
+        case .property(let property):
+            return SPARQLTermWriter().write(property)
         case .inverse(let path):
             return "^" + path.renderUnaryOperand()
         case .sequence(let parts):
@@ -43,14 +41,14 @@ public indirect enum SPARQLPropertyPath: Hashable, Sendable {
 
     private func renderUnaryOperand() -> String {
         switch self {
-        case .iri, .negated: render()
+        case .property, .negated: render()
         default: "(" + render() + ")"
         }
     }
 
     private func renderSequenceOperand() -> String {
         switch self {
-        case .iri, .inverse, .zeroOrMore, .oneOrMore, .zeroOrOne, .negated: render()
+        case .property, .inverse, .zeroOrMore, .oneOrMore, .zeroOrOne, .negated: render()
         case .sequence, .alternative: "(" + render() + ")"
         }
     }
@@ -59,15 +57,15 @@ public indirect enum SPARQLPropertyPath: Hashable, Sendable {
 /// A member of a negated property set (SPARQL 1.2 Query Language §9.1,
 /// `PathOneInPropertySet`).
 public enum SPARQLNegatedPathMember: Hashable, Sendable {
-    /// A forward predicate.
-    case iri(IRI)
-    /// An inverse predicate, `^iri`.
-    case inverse(IRI)
+    /// A forward property.
+    case property(SPARQLTerm)
+    /// An inverse property, `^property`.
+    case inverse(SPARQLTerm)
 
     func render() -> String {
         switch self {
-        case .iri(let iri): SPARQLTermWriter().write(iri)
-        case .inverse(let iri): "^" + SPARQLTermWriter().write(iri)
+        case .property(let property): SPARQLTermWriter().write(property)
+        case .inverse(let property): "^" + SPARQLTermWriter().write(property)
         }
     }
 }

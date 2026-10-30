@@ -14,7 +14,8 @@ public struct SPARQLGraphResultDecoder: Sendable {
     /// Decodes a graph in the given media type.
     ///
     /// - Parameter base: The IRI relative references in a Turtle document
-    ///   resolve against, usually the request IRI.
+    ///   resolve against: the retrieval URI (RDF 1.2 Turtle §6.3, RFC 3986
+    ///   §5.1.3).
     public func decode(_ data: Data, as format: SPARQLGraphAccept, base: IRI? = nil) throws -> Set<DecodedTriple> {
         guard let document = String(data: data, encoding: .utf8) else {
             throw SPARQLError.decodingFailure("Graph result payload is not UTF-8.")
@@ -25,11 +26,7 @@ public struct SPARQLGraphResultDecoder: Sendable {
                 return Set(try TurtleDecoder(base: base).decode(document))
             case .ntriples:
                 return Set(try NTriplesDecoder().decode(document))
-            case .rdfXML, .jsonLD:
-                throw SPARQLError.decodingFailure("RDFFormats has no \(format.rawValue) decoder.")
             }
-        } catch let error as SPARQLError {
-            throw error
         } catch {
             throw SPARQLError.decodingFailure("Failed to decode \(format.rawValue) graph result: \(error)")
         }

@@ -1,12 +1,16 @@
 import IRIKit
 import RDFCore
-import RDFFormats
 
 /// Writes RDF terms in SPARQL syntax (SPARQL 1.2 Query Language §19.8).
 ///
 /// This is where a term's IRI becomes query text: the translation into SPARQL,
-/// and nowhere else.
+/// and nowhere else. A declared term's IRI is read from its generated type's
+/// metadata here.
 struct SPARQLTermWriter {
+    func write(_ term: SPARQLTerm) -> String {
+        write(term.iri)
+    }
+
     func write(_ variable: Variable) -> String {
         "?" + variable.name
     }
@@ -15,8 +19,8 @@ struct SPARQLTermWriter {
         "<" + iri.rawValue + ">"
     }
 
-    func write(_ node: BlankNode) -> String {
-        "_:" + node.identifier
+    func write(_ node: SPARQLBlankNode) -> String {
+        "_:" + node.label
     }
 
     /// A literal as `STRING_LITERAL_QUOTE` with its language tag, base
@@ -50,28 +54,6 @@ struct SPARQLTermWriter {
             }
         }
         return text + "\""
-    }
-
-    func write(_ subject: SubjectTerm) -> String {
-        switch subject {
-        case .iri(let iri): write(iri)
-        case .blankNode(let node): write(node)
-        }
-    }
-
-    func write(_ object: ObjectTerm) -> String {
-        switch object {
-        case .iri(let iri): write(iri)
-        case .blankNode(let node): write(node)
-        case .literal(let literal): write(literal)
-        case .tripleTerm(let term):
-            "<<( " + write(term.subject) + " " + write(term.predicate) + " " + write(term.object) + " )>>"
-        }
-    }
-
-    /// A ground triple as a `TriplesTemplate` line.
-    func write(_ triple: DecodedTriple) -> String {
-        write(triple.subject) + " " + write(triple.predicate) + " " + write(triple.object) + " ."
     }
 }
 

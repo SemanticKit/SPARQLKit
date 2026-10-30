@@ -2,6 +2,7 @@ import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+import IRIKit
 
 /// How a client authenticates to an endpoint.
 public struct EndpointAuthentication: Sendable {
@@ -26,8 +27,7 @@ struct SPARQLHTTPTransport: Sendable {
 
     func applyHeaders(to request: inout URLRequest) throws {
         for (header, value) in defaultHeaders {
-            try validateHeader(name: header, value: value)
-            request.setValue(value, forHTTPHeaderField: header)
+            try setHeader(header, value, on: &request)
         }
         guard let authentication else { return }
         let value: String
@@ -37,8 +37,24 @@ struct SPARQLHTTPTransport: Sendable {
         case .basic(let username, let password):
             value = "Basic " + Data((username + ":" + password).utf8).base64EncodedString()
         }
-        try validateHeader(name: "Authorization", value: value)
-        request.setValue(value, forHTTPHeaderField: "Authorization")
+        try setHeader("Authorization", value, on: &request)
+    }
+
+    /// Sets a header after checking that neither its name nor its value
+    /// holds a control character, so no caller-supplied text can end the
+    /// header line and start another (RFC 9110 §5.5). A `nil` value sets
+    /// nothing.
+    func setHeader(_ name: String, _ value: String?, on request: inout URLRequest) throws {
+        guard let value else { return }
+        try validateHeader(name: name, value: value)
+        request.setValue(value, forHTTPHeaderField: name)
+    }
+
+    /// The IRI a response body was retrieved from, which relative IRIs in it
+    /// resolve against (RFC 3986 §5.1.3): the response URL after any
+    /// redirect, else the request URL.
+    func retrievalIRI(of response: HTTPURLResponse, for request: URLRequest) -> IRI? {
+        (response.url ?? request.url).flatMap { IRI(rawValue: $0.absoluteString) }
     }
 
     func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {

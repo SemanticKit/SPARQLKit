@@ -3,18 +3,19 @@ import Foundation
 import FoundationNetworking
 #endif
 import IRIKit
+import RDFKit
 import Testing
 @testable import SPARQLKit
 
 @Suite("Federated queries", .tags(.rendering))
 struct SPARQLFederatedQueryTests {
     let dbpedia: IRI = "http://dbpedia.org/sparql"
-    let knows: IRI = "http://xmlns.com/foaf/0.1/knows"
-    let foafName: IRI = "http://xmlns.com/foaf/0.1/name"
-    let page: IRI = "http://xmlns.com/foaf/0.1/page"
+    let knows = Foaf.knows.sparql
+    let foafName = Foaf.name.sparql
+    let page = Foaf.page.sparql
 
-    func pattern(_ s: Variable, _ p: IRI, _ o: Variable) -> SPARQLPattern {
-        .triple(SPARQLTriplePattern(.variable(s), .iri(p), .variable(o)))
+    func pattern(_ s: Variable, _ p: SPARQLTerm, _ o: Variable) -> SPARQLPattern {
+        .triple(SPARQLTriplePattern(.variable(s), .property(p), .variable(o)))
     }
 
     @Test("SERVICE renders its endpoint, SILENT and pattern")

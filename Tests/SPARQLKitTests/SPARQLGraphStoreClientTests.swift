@@ -115,4 +115,37 @@ struct SPARQLGraphStoreClientTests {
             _ = try await client(MockSession(), headers: ["X-Bad": "a\r\nb"]).getGraph()
         }
     }
+
+    @Test(
+        "Conditional header values with control characters are refused before sending",
+        .tags(.security),
+        arguments: [
+            SPARQLConditionalRequest(ifMatch: "\"a\"\r\nX-Injected: 1"),
+            SPARQLConditionalRequest(ifNoneMatch: "*\n"),
+            SPARQLConditionalRequest(ifUnmodifiedSince: "Mon\r"),
+            SPARQLConditionalRequest(ifModifiedSince: "Tue\u{0}")
+        ]
+    )
+    func refusesControlCharactersInConditionalHeaders(conditional: SPARQLConditionalRequest) async {
+        let session = MockSession()
+        await #expect(throws: SPARQLError.invalidRequest("HTTP header names/values must not contain control characters.")) {
+            _ = try await client(session).deleteGraph(conditional: conditional)
+        }
+        #expect(session.requests.isEmpty)
+    }
+
+    @Test("Relative IRIs in a returned graph resolve against the graph's URL")
+    func relativeIRIsResolveAgainstRetrievalURL() async throws {
+        let session = MockSession(body: "<#a> <#b> <c> .")
+        #expect(try await client(session).getGraph(.defaultGraph) == [DecodedTriple(
+            subject: .iri("https://example.org/graphs?default#a"),
+            predicate: "https://example.org/graphs?default#b",
+            object: .iri("https://example.org/c")
+        )])
+        #expect(try await client(session).getGraph(.named(named), accept: .turtle) == [DecodedTriple(
+            subject: .iri("https://example.org/graphs?graph=https://example.org/g#a"),
+            predicate: "https://example.org/graphs?graph=https://example.org/g#b",
+            object: .iri("https://example.org/c")
+        )])
+    }
 }

@@ -49,7 +49,7 @@ struct SPARQLServiceDescriptionTests {
         #expect(SPARQLGraphAccept.ntriples.format === Formats.N_Triples)
         let description = SPARQLServiceDescription(resultFormats: [Formats.SPARQL_Results_JSON, Formats.Turtle])
         #expect(description.supports(SPARQLAccept.jsonResults))
-        #expect(!description.supports(SPARQLGraphAccept.rdfXML))
+        #expect(!description.supports(SPARQLGraphAccept.ntriples))
         #expect(SPARQLServiceDescription().supports(SPARQLAccept.tsv))
     }
 
@@ -60,6 +60,19 @@ struct SPARQLServiceDescriptionTests {
         #expect(Formats.decodeFormat("http://www.w3.org/ns/formats/N-Triples") === Formats.N_Triples)
         #expect(Entailment.decodeRegime("http://www.w3.org/ns/entailment/OWL-Direct") === Entailment.OWL_Direct)
         #expect(Entailment.decodeRegime("http://www.w3.org/ns/entailment/Unknown") == nil)
+    }
+
+    @Test("An individual that is not an entailment regime does not decode as one", .tags(.vocabulary))
+    func nonRegimesDoNotDecodeAsRegimes() throws {
+        let turtle = """
+            @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+            @prefix formats: <http://www.w3.org/ns/formats/> .
+            <https://example.org/sparql> a sd:Service ;
+              sd:defaultEntailmentRegime formats:Turtle , sd:SPARQL12Query .
+            """
+        #expect(try SPARQLServiceDescriptionDecoder().decode(turtle).entailmentRegimes.isEmpty)
+        #expect(Entailment.decodeRegime(type(of: Formats.Turtle).metadata.id) == nil)
+        #expect(!SPARQLServiceDescription(entailmentRegimes: [Entailment.RDFS]).supportsEntailment(Formats.Turtle))
     }
 
     @Test("The client refuses a result format the endpoint does not offer", .tags(.protocol))
@@ -73,14 +86,14 @@ struct SPARQLServiceDescriptionTests {
     }
 
     @Test("The client refuses a graph format the endpoint does not offer", .tags(.protocol))
-    func refusesUnsupportedGraphFormat() async {
-        let construct = SPARQLConstructQuery(
+    func refusesUnsupportedGraphFormat() async throws {
+        let construct = try SPARQLConstructQuery(
             [SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o"))],
             where: [.triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o")))]
         )
         let description = SPARQLServiceDescription(resultFormats: [Formats.Turtle])
         await #expect(throws: SPARQLError.invalidRequest("Endpoint service description does not support requested graph format.")) {
-            _ = try await client(MockSession()).executeGraphQuery(construct, accept: .rdfXML, serviceDescription: description)
+            _ = try await client(MockSession()).executeGraphQuery(construct, accept: .ntriples, serviceDescription: description)
         }
     }
 

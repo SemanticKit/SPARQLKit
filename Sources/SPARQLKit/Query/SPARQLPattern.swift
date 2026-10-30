@@ -13,7 +13,7 @@ public indirect enum SPARQLPattern: Hashable, Sendable {
     /// `MINUS { … }` (§8.2).
     case minus([SPARQLPattern])
     /// `GRAPH name { … }` (§13.3), where the name is an IRI or a variable.
-    case graph(SPARQLPatternTerm, [SPARQLPattern])
+    case graph(SPARQLGraphName, [SPARQLPattern])
     /// `SERVICE endpoint { … }` (SPARQL 1.2 Federated Query §3).
     case service(IRI, silent: Bool, [SPARQLPattern])
     /// `FILTER(expression)` (§17).

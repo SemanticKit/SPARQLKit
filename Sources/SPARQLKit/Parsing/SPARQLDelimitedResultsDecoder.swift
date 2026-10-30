@@ -39,7 +39,7 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
         guard let header = rows.first, !header.allSatisfy(\.isEmpty) else {
             throw SPARQLError.decodingFailure("Missing header row.")
         }
-        let variables = header.map { Variable($0) }
+        let variables = try header.map(SPARQLResultTermDecoder().variable)
         var bindings: [Binding] = []
         for row in rows.dropFirst() where !row.allSatisfy(\.isEmpty) {
             var binding: Binding = [:]

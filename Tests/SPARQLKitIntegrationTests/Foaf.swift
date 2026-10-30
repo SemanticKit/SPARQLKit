@@ -1,0 +1,1 @@
+../SPARQLKitTests/Support/Foaf.swift

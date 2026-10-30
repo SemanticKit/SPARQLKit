@@ -5,6 +5,7 @@ import FoundationNetworking
 import IRIKit
 import RDFCore
 import RDFFormats
+import RDFKit
 import Testing
 @testable import SPARQLKit
 
@@ -13,8 +14,8 @@ struct SPARQLEndpointClientTests {
     let queryURL = URL(string: "https://example.org/sparql")!
     let updateURL = URL(string: "https://example.org/update")!
     let select = SPARQLSelectQuery(["s"], where: [.triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o")))])
-    let insert = SPARQLUpdateRequest([
-        .insertData([DecodedTriple(subject: .iri("http://example.org/s"), predicate: "http://example.org/p", object: .iri("http://example.org/o"))])
+    let insertData = SPARQLUpdateOperation.insertData([
+        SPARQLTriplePattern(.iri("http://example.org/s"), .property(Foaf.knows.sparql), .iri("http://example.org/o"))
     ])
 
     func client(_ session: MockSession = MockSession(), update: Bool = true, headers: [String: String] = [:]) -> SPARQLEndpointClient {
@@ -82,7 +83,7 @@ struct SPARQLEndpointClientTests {
     func updateRequest() async throws {
         let session = MockSession()
         _ = try await client(session).executeUpdate(
-            insert,
+            try SPARQLUpdateRequest([insertData]),
             options: SPARQLUpdateRequestOptions(usingGraphs: ["https://example.org/u-default"], usingNamedGraphs: ["https://example.org/u-named"])
         )
 
@@ -97,14 +98,14 @@ struct SPARQLEndpointClientTests {
     @Test("Without an update endpoint, updates go to the query endpoint")
     func updateFallsBackToQueryEndpoint() async throws {
         let session = MockSession()
-        _ = try await client(session, update: false).executeUpdate(insert)
+        _ = try await client(session, update: false).executeUpdate(try SPARQLUpdateRequest([insertData]))
         #expect(session.lastRequest?.url == queryURL)
     }
 
     @Test("A batch sent atomically is one request with every operation")
     func atomicBatch() async throws {
         let session = MockSession()
-        let batch = SPARQLUpdateRequest(insert.operations + [.drop(.default)])
+        let batch = try SPARQLUpdateRequest([insertData] + [.drop(.default)])
         let responses = try await client(session).executeUpdateBatch(batch)
 
         #expect(responses.count == 1)
@@ -115,7 +116,7 @@ struct SPARQLEndpointClientTests {
     @Test("A sequential batch sends one request per operation, in order")
     func sequentialBatch() async throws {
         let session = MockSession(responses: [(200, "first"), (200, "second")])
-        let batch = SPARQLUpdateRequest(insert.operations + [.drop(.default)])
+        let batch = try SPARQLUpdateRequest([insertData] + [.drop(.default)])
         let responses = try await client(session).executeUpdateBatch(batch, mode: .sequentialRequests)
 
         #expect(responses.map { String(data: $0, encoding: .utf8) } == ["first", "second"])
@@ -126,9 +127,9 @@ struct SPARQLEndpointClientTests {
     }
 
     @Test("A sequential batch stops at the first failure")
-    func sequentialBatchStops() async {
+    func sequentialBatchStops() async throws {
         let session = MockSession(responses: [(200, "ok"), (500, "boom"), (200, "never")])
-        let batch = SPARQLUpdateRequest(insert.operations + [.drop(.default), .clear(.all)])
+        let batch = try SPARQLUpdateRequest([insertData] + [.drop(.default), .clear(.all)])
         await #expect(throws: SPARQLError.httpStatus(500, body: "boom")) {
             _ = try await client(session).executeUpdateBatch(batch, mode: .sequentialRequests)
         }
@@ -138,7 +139,7 @@ struct SPARQLEndpointClientTests {
     @Test("An update with no operations is refused")
     func emptyUpdateRefused() async {
         await #expect(throws: SPARQLError.invalidRequest("SPARQL update request must contain at least one operation.")) {
-            _ = try await client().executeUpdateBatch(SPARQLUpdateRequest([]))
+            _ = try await client().executeUpdateBatch(try SPARQLUpdateRequest([]))
         }
     }
 
@@ -172,7 +173,7 @@ struct SPARQLEndpointClientTests {
     @Test("CONSTRUCT and DESCRIBE ask for a graph and decode it", arguments: [SPARQLGraphAccept.turtle, .ntriples])
     func graphQueriesDecode(accept: SPARQLGraphAccept) async throws {
         let session = MockSession(body: "<http://example.org/s> <http://example.org/p> <http://example.org/o> .\n")
-        let construct = SPARQLConstructQuery(
+        let construct = try SPARQLConstructQuery(
             [SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o"))],
             where: select.patterns
         )
@@ -180,8 +181,36 @@ struct SPARQLEndpointClientTests {
         #expect(constructed.count == 1)
         #expect(session.lastRequest?.value(forHTTPHeaderField: "Accept") == accept.rawValue)
 
-        let described = try await client(session).executeGraphQuery(SPARQLDescribeQuery([.iri("http://example.org/s")]), accept: accept)
+        let described = try await client(session).executeGraphQuery(try SPARQLDescribeQuery([.iri("http://example.org/s")]), accept: accept)
         #expect(described == constructed)
         #expect(try #require(session.lastRequest).bodyText == "query=DESCRIBE%20%3Chttp%3A%2F%2Fexample.org%2Fs%3E")
+    }
+
+    @Test("Relative IRIs in a returned graph resolve against the request URL")
+    func graphQueryResolvesRelativeIRIs() async throws {
+        let session = MockSession(body: "<#a> <#b> <c> .")
+        let construct = try SPARQLConstructQuery(
+            [SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o"))],
+            where: select.patterns
+        )
+        let graph = try await client(session).executeGraphQuery(construct)
+        #expect(graph == [DecodedTriple(
+            subject: .iri("https://example.org/sparql#a"),
+            predicate: "https://example.org/sparql#b",
+            object: .iri("https://example.org/c")
+        )])
+    }
+
+    @Test("A result IRI decodes into the declared individual it names", .tags(.decoding))
+    func resultIRIsDecodeIntoIndividuals() async throws {
+        let session = MockSession(body: #"{"head":{"vars":["f","t"]},"results":{"bindings":[{"f":{"type":"uri","value":"http://www.w3.org/ns/formats/Turtle"},"t":{"type":"uri","value":"http://xmlns.com/foaf/0.1/Person"}}]}}"#)
+        let result = try await client(session).executeSelect(select)
+        let binding = try #require(result.bindings.first)
+        let formats: [any Formats.Format] = [Formats.N_Triples, Formats.Turtle]
+        #expect(binding.individual("f", among: formats) === Formats.Turtle)
+        #expect(binding.individual("t", among: formats) == nil)
+        #expect(binding.individual("unbound", among: formats) == nil)
+        #expect(binding.binds("t", to: Foaf.PersonIndividual.sparql))
+        #expect(!binding.binds("t", to: Foaf.knows.sparql))
     }
 }

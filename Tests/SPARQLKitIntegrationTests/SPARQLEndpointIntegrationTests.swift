@@ -5,12 +5,12 @@ import FoundationNetworking
 import IRIKit
 import RDFCore
 import RDFFormats
+import RDFKit
 import Testing
 @testable import SPARQLKit
 
 @Suite("Live SPARQL endpoint", .tags(.liveEndpoint))
 struct SPARQLEndpointIntegrationTests {
-    let p: IRI = "http://example.org/p"
 
     func anyTriple() -> SPARQLPattern {
         .triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o")))
@@ -27,17 +27,17 @@ struct SPARQLEndpointIntegrationTests {
     func updateRoundTrip() async throws {
         let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(
             queryURL: try #require(Environment.queryURL),
-            updateURL: try #require(Environment.updateURL)
+            updateURL: Environment.updateURL
         ))
         let graph = Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? "http://example.org/test-graph"
         let subject: IRI = "http://example.org/sparqlkit/integration/sequence"
         let objectA: IRI = "http://example.org/oA"
         let objectB: IRI = "http://example.org/oB"
-        func triple(_ object: IRI) -> DecodedTriple {
-            DecodedTriple(subject: .iri(subject), predicate: p, object: .iri(object))
+        func triple(_ object: IRI) -> SPARQLTriplePattern {
+            SPARQLTriplePattern(.iri(subject), .property(Foaf.knows.sparql), .iri(object))
         }
 
-        _ = try await client.executeUpdate(SPARQLUpdateRequest([
+        _ = try await client.executeUpdate(try SPARQLUpdateRequest([
             .clear(.named(graph), silent: true),
             .insertData([triple(objectA)], graph: graph),
             .deleteData([triple(objectA)], graph: graph),
@@ -45,7 +45,7 @@ struct SPARQLEndpointIntegrationTests {
         ]))
 
         let result = try await client.executeSelect(SPARQLSelectQuery(["o"], where: [
-            .graph(.iri(graph), [.triple(SPARQLTriplePattern(.iri(subject), .iri(p), .variable("o")))])
+            .graph(.iri(graph), [.triple(SPARQLTriplePattern(.iri(subject), .property(Foaf.knows.sparql), .variable("o")))])
         ]))
         let values = result.bindings.compactMap { $0["o"] }
         #expect(values.contains(.iri(objectB)))
@@ -56,7 +56,7 @@ struct SPARQLEndpointIntegrationTests {
     func graphStoreRoundTrip() async throws {
         let client = SPARQLGraphStoreClient(configuration: SPARQLGraphStoreConfiguration(graphStoreURL: try #require(Environment.graphStoreURL)))
         let graph = Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? "http://example.org/sparqlkit/graphstore"
-        let triple = DecodedTriple(subject: .iri("http://example.org/s"), predicate: p, object: .iri("http://example.org/o"))
+        let triple = DecodedTriple(subject: .iri("http://example.org/s"), predicate: Foaf.knows.metadata.id, object: .iri("http://example.org/o"))
 
         _ = try await client.putGraph([triple], graph: .named(graph))
         #expect(try await client.getGraph(.named(graph)).contains(triple))
@@ -69,7 +69,12 @@ struct SPARQLEndpointIntegrationTests {
         let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(queryURL: try #require(Environment.queryURL)))
         let remote = try #require(Environment.iri("SPARQL_FEDERATED_ENDPOINT_URL"))
         let subject = Environment.iri("SPARQL_FEDERATED_SUBJECT_IRI")
-        let local: SPARQLPattern = subject.map { .values(SPARQLValues(variables: ["s"], rows: [[.iri($0)]])) } ?? anyTriple()
+        let local: SPARQLPattern
+        if let subject {
+            local = .values(try SPARQLValues(variables: ["s"], rows: [[.iri(subject)]]))
+        } else {
+            local = anyTriple()
+        }
         let query = SPARQLSelectQuery(["s", "p", "o"], where: [local, .service(remote, silent: true, [anyTriple()])], limit: 1)
 
         #expect(query.federatedBindingAnalysis().propagatedVariables.contains("s"))

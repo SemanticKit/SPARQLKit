@@ -44,10 +44,17 @@ struct SPARQLGraphResultDecoderTests {
         }
     }
 
-    @Test("A format RDFFormats cannot decode is reported, not guessed")
-    func rejectsUndecodableFormat() {
-        #expect(throws: SPARQLError.decodingFailure("RDFFormats has no application/rdf+xml decoder.")) {
-            _ = try SPARQLGraphResultDecoder().decode(Data("<rdf:RDF/>".utf8), as: .rdfXML)
+    @Test("Clients ask only for graph formats RDFFormats decodes")
+    func offersOnlyDecodableFormats() throws {
+        #expect(SPARQLGraphAccept.allCases == [.turtle, .ntriples])
+        #expect(SPARQLGraphAccept(rawValue: "application/rdf+xml") == nil)
+        #expect(SPARQLGraphAccept(rawValue: "application/ld+json") == nil)
+        for accept in SPARQLGraphAccept.allCases {
+            let graph = try SPARQLGraphResultDecoder().decode(
+                Data("<http://example.org/a> <http://example.org/knows> <http://example.org/b> .\n".utf8),
+                as: accept
+            )
+            #expect(graph.count == 1)
         }
     }
 }

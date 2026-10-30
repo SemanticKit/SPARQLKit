@@ -1,25 +1,64 @@
 /// A SPARQL query variable (SPARQL 1.2 Query Language §4.1.3).
 ///
-/// The name is written without its `?` or `$` marker; ``init(_:)`` drops
-/// either marker when given one.
+/// The name is written without its `?` or `$` marker. It must match the
+/// grammar's `VARNAME` (§19.8), so a variable always renders as one token:
+/// a name taken from a results document header or from user input that is
+/// not a `VARNAME` is rejected, never written into a query.
 public struct Variable: Hashable, Comparable, Sendable, Codable, ExpressibleByStringLiteral {
     /// The variable name, without `?` or `$`.
     public let name: String
 
-    /// Creates a variable from its name.
-    public init(_ name: String) {
+    /// Creates a variable from its name, dropping a leading `?` or `$`.
+    ///
+    /// - Throws: ``SPARQLError/invalidRequest(_:)`` when the name is not a
+    ///   `VARNAME`.
+    public init(_ name: String) throws {
+        var name = Substring(name)
         if let first = name.first, first == "?" || first == "$" {
-            self.name = String(name.dropFirst())
-        } else {
-            self.name = name
+            name = name.dropFirst()
+        }
+        guard Self.isVarName(name) else {
+            throw SPARQLError.invalidRequest("'\(name)' is not a SPARQL variable name (VARNAME).")
+        }
+        self.name = String(name)
+    }
+
+    /// A variable written in source. An invalid name is a programming error.
+    public init(stringLiteral value: String) {
+        do {
+            try self.init(value)
+        } catch {
+            preconditionFailure("'\(value)' is not a SPARQL variable name (VARNAME).")
         }
     }
 
-    public init(stringLiteral value: String) {
-        self.init(value)
+    public init(from decoder: any Decoder) throws {
+        let text = try decoder.singleValueContainer().decode(String.self)
+        do {
+            try self.init(text)
+        } catch {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "'\(text)' is not a SPARQL variable name (VARNAME)."
+            ))
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(name)
     }
 
     public static func < (lhs: Variable, rhs: Variable) -> Bool {
         lhs.name < rhs.name
+    }
+
+    /// `VARNAME ::= ( PN_CHARS_U | [0-9] ) ( PN_CHARS_U | [0-9] | #x00B7 |
+    /// [#x0300-#x036F] | [#x203F-#x2040] )*`
+    static func isVarName(_ name: Substring) -> Bool {
+        guard let first = name.unicodeScalars.first, first.isSPARQLNameStart || first.isSPARQLDigit else {
+            return false
+        }
+        return name.unicodeScalars.dropFirst().allSatisfy(\.isSPARQLVarNameCharacter)
     }
 }

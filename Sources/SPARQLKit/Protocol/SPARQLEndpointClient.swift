@@ -157,8 +157,8 @@ public struct SPARQLEndpointClient: Sendable {
         }
         try check(options, against: serviceDescription)
         let request = try makeQueryRequest(query.render(), accept: accept.rawValue, method: method, options: options)
-        let (data, _) = try await transport.perform(request)
-        return try SPARQLGraphResultDecoder().decode(data, as: accept)
+        let (data, response) = try await transport.perform(request)
+        return try SPARQLGraphResultDecoder().decode(data, as: accept, base: transport.retrievalIRI(of: response, for: request))
     }
 
     /// Sends an update request.
@@ -187,7 +187,7 @@ public struct SPARQLEndpointClient: Sendable {
         case .sequentialRequests:
             var responses: [Data] = []
             for operation in update.operations {
-                responses.append(try await executeUpdate(SPARQLUpdateRequest([operation]), options: options))
+                responses.append(try await executeUpdate(try SPARQLUpdateRequest([operation]), options: options))
             }
             return responses
         }
