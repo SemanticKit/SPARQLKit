@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import IRIKit
 import RDFCore
@@ -55,5 +56,66 @@ struct ObjectTermResultsTests {
         #expect(throws: Error.self) { try ObjectTerm(literal: "hello", direction: .ltr) }
         #expect(throws: Error.self) { try ObjectTerm(literal: "hello", datatype: "relative/type") }
         #expect(throws: Error.self) { try ObjectTerm(literal: "hello", datatype: "http://www.w3.org/1999/02/22-rdf-syntax-ns#langString") }
+    }
+
+    @Test("A TSV directional literal keeps a language tag with subtags", arguments: [
+        ("\"chat\"@en-US--ltr", "en-US", BaseDirection.ltr),
+        ("\"chat\"@zh-Hant-TW--rtl", "zh-Hant-TW", BaseDirection.rtl),
+        ("\"chat\"@en--ltr", "en", BaseDirection.ltr),
+    ])
+    func tsvDirectionalSubtags(_ cell: String, _ language: String, _ direction: BaseDirection) throws {
+        let result = try SPARQLDelimitedResultsDecoder().decodeTSV(Data("?x\n\(cell)\n".utf8))
+        let row = try #require(result.bindings.first)
+        #expect(row[Variable(rawValue: "x")] == (try ObjectTerm(literal: "chat", language: language, direction: direction)))
+    }
+
+    @Test("A CSV directional literal keeps a language tag with subtags", arguments: [
+        ("\"\"\"chat\"\"@en-US--ltr\"", "en-US", BaseDirection.ltr),
+        ("\"\"\"chat\"\"@zh-Hant-TW--rtl\"", "zh-Hant-TW", BaseDirection.rtl),
+    ])
+    func csvDirectionalSubtags(_ cell: String, _ language: String, _ direction: BaseDirection) throws {
+        let result = try SPARQLDelimitedResultsDecoder().decodeCSV(Data("x\n\(cell)\n".utf8), normalizeTerms: true)
+        let row = try #require(result.bindings.first)
+        #expect(row[Variable(rawValue: "x")] == (try ObjectTerm(literal: "chat", language: language, direction: direction)))
+    }
+
+    @Test("CSV rows end with CRLF, as the SPARQL CSV format writes them")
+    func csvCRLF() throws {
+        let result = try SPARQLDelimitedResultsDecoder().decodeCSV(Data("x\r\n\"\"\"chat\"\"@en-US--ltr\"\r\n".utf8), normalizeTerms: true)
+        #expect(result.variables == [Variable(rawValue: "x")])
+        let row = try #require(result.bindings.first)
+        #expect(row[Variable(rawValue: "x")] == (try ObjectTerm(literal: "chat", language: "en-US", direction: .ltr)))
+    }
+
+    @Test("A delimited base direction other than ltr or rtl is an error")
+    func delimitedMalformedDirection() {
+        #expect(throws: SPARQLError.self) {
+            try SPARQLDelimitedResultsDecoder().decodeTSV(Data("?x\n\"chat\"@en-US--auto\n".utf8))
+        }
+        #expect(throws: SPARQLError.self) {
+            try SPARQLDelimitedResultsDecoder().decodeCSV(Data("x\n\"\"\"chat\"\"@en--auto\"\n".utf8), normalizeTerms: true)
+        }
+    }
+
+    @Test("A JSON its:dir other than ltr or rtl is an error")
+    func jsonMalformedDirection() {
+        let document = #"{"head":{"vars":["x"]},"results":{"bindings":[{"x":{"type":"literal","value":"a","xml:lang":"en","its:dir":"auto"}}]}}"#
+        #expect(throws: SPARQLError.self) {
+            try SPARQLJSONResultDecoder().decode(Data(document.utf8))
+        }
+    }
+
+    @Test("An XML its:dir other than ltr or rtl is an error")
+    func xmlMalformedDirection() {
+        let document = """
+            <?xml version="1.0"?>
+            <sparql xmlns="http://www.w3.org/2005/sparql-results#" xmlns:its="http://www.w3.org/2005/11/its">
+              <head><variable name="x"/></head>
+              <results><result><binding name="x"><literal xml:lang="en" its:dir="auto">a</literal></binding></result></results>
+            </sparql>
+            """
+        #expect(throws: SPARQLError.self) {
+            try SPARQLXMLResultDecoder().decode(Data(document.utf8))
+        }
     }
 }

@@ -51,3 +51,16 @@ extension ObjectTerm {
         self = .tripleTerm(Graph.Element(subject: subject, predicate: predicate, object: object))
     }
 }
+
+extension BaseDirection {
+    /// A base direction written in a results document: the JSON and XML
+    /// formats' `its:dir`, or what follows `--` in CSV and TSV. RDF 1.2
+    /// Concepts §3.4 has two base directions, `ltr` and `rtl`; any other value
+    /// would name a different term, so it is an error, not dropped.
+    init(resultsText text: String) throws {
+        guard let direction = BaseDirection(rawValue: text.lowercased()) else {
+            throw SPARQLError.decodingFailure("'\(text)' is not a base direction: it must be ltr or rtl.")
+        }
+        self = direction
+    }
+}

@@ -261,7 +261,7 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
         case .bnode:
             return try ObjectTerm(blankNodeLabel: partial.text)
         case .literal:
-            let baseDirection = partial.direction.flatMap { BaseDirection(rawValue: $0.lowercased()) }
+            let baseDirection = try partial.direction.map(BaseDirection.init(resultsText:))
             return try ObjectTerm(
                 literal: partial.text,
                 datatype: partial.datatype,

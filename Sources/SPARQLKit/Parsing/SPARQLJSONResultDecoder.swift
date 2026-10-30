@@ -155,7 +155,7 @@ private final class JSONBindingValue: Decodable {
                 guard case let .string(value) = value else {
                     throw SPARQLError.decodingFailure("Literal term value must be a string.")
                 }
-                let baseDirection = direction.flatMap { BaseDirection(rawValue: $0.lowercased()) }
+                let baseDirection = try direction.map(BaseDirection.init(resultsText:))
                 return try ObjectTerm(literal: value, datatype: datatype, language: language, direction: baseDirection)
             }
         }

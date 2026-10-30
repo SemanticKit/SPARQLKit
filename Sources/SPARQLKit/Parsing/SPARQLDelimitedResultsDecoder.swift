@@ -84,7 +84,7 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
             {
                 let lexical = String(token[token.index(after: token.startIndex) ..< languageRange.lowerBound])
                 let languageToken = String(token[languageRange.upperBound...])
-                let (language, direction) = splitLanguageAndDirection(languageToken)
+                let (language, direction) = try splitLanguageAndDirection(languageToken)
                 return try ObjectTerm(
                     literal: tsvMode ? unescapeTSVLiteral(lexical) : lexical,
                     language: language,
@@ -207,14 +207,16 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
             .replacingOccurrences(of: "\\r", with: "\r")
     }
 
-    private func splitLanguageAndDirection(_ token: String) -> (String, BaseDirection?) {
-        let pieces = token.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false)
-        if pieces.count == 3, pieces[1].isEmpty {
-            let language = String(pieces[0])
-            let direction = BaseDirection(rawValue: String(pieces[2]).lowercased())
-            return (language, direction)
+    /// Splits `LANGTAG` with an optional `--` base direction, as RDF 1.2
+    /// N-Triples writes it after the `@`. A language tag has single `-`
+    /// between subtags, so the direction follows the last `--`:
+    /// `en-US--ltr` is `en-US` and `ltr`.
+    private func splitLanguageAndDirection(_ token: String) throws -> (String, BaseDirection?) {
+        guard let separator = token.range(of: "--", options: .backwards) else {
+            return (token, nil)
         }
-        return (token, nil)
+        let direction = try BaseDirection(resultsText: String(token[separator.upperBound...]))
+        return (String(token[..<separator.lowerBound]), direction)
     }
 
     private func parseCSV(_ content: String) throws -> [[String]] {
@@ -272,7 +274,8 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
         case ",":
             row.append(cell)
             cell = ""
-        case "\n":
+        case "\n", "\r\n":
+            // SPARQL CSV ends rows with CRLF, which Swift reads as one Character.
             row.append(cell)
             rows.append(row)
             row = []
