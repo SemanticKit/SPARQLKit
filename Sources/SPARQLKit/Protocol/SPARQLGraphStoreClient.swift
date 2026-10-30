@@ -147,11 +147,11 @@ public struct SPARQLGraphStoreClient: Sendable {
         var components = URLComponents(url: configuration.graphStoreURL, resolvingAgainstBaseURL: false)
         switch graph {
         case .service:
-            components?.queryItems = nil
+            components?.percentEncodedQuery = nil
         case .defaultGraph:
-            components?.queryItems = [URLQueryItem(name: "default", value: nil)]
+            components?.percentEncodedQuery = FormURLEncoder().encode([(name: "default", value: nil)])
         case .named(let iri):
-            components?.queryItems = [URLQueryItem(name: "graph", value: iri.rawValue)]
+            components?.percentEncodedQuery = FormURLEncoder().encode([(name: "graph", value: iri.rawValue)])
         }
         guard let url = components?.url else {
             throw SPARQLError.invalidRequest("The graph does not fit in a request URL.")

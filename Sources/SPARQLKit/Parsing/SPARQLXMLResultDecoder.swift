@@ -229,6 +229,9 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
                 booleanValue = true
             } else if trimmed == "false" {
                 booleanValue = false
+            } else {
+                // XML Format §2.3.3: the element holds `true` or `false`.
+                fail(parser, "<boolean> holds '\(trimmed)', not true or false.")
             }
             inBoolean = false
             booleanTextBuffer = ""

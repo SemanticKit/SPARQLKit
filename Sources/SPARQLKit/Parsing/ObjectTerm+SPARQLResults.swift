@@ -1,3 +1,4 @@
+import Foundation
 import IRIKit
 import RDFCore
 import RDFFormats
@@ -9,20 +10,48 @@ import RDFKit
 /// is validated as an absolute IRI.
 extension ObjectTerm {
     /// A TSV field (SPARQL 1.2 Query Results CSV and TSV Formats §4.1), which
-    /// is a term in Turtle / N-Triples syntax, read as the object of a
-    /// one-triple Turtle document.
+    /// is one term in Turtle / N-Triples syntax.
+    ///
+    /// The field is read by RDFFormats' ``TurtleDecoder`` as the object of a
+    /// triple term, `<c> <c> <<( <c> <c> FIELD )>> .`: that position admits
+    /// exactly one term (RDF 1.2 Turtle `ttObject`), with no object list, no
+    /// collection, no directive and no further statement. The carrier `<c>`
+    /// is a fresh `urn:uuid:` IRI (RFC 9562), so no field text can name it to
+    /// end the triple term and repeat the carrier statement, and the closing
+    /// `)>> .` starts a new line, so no comment in the field can hide it. A
+    /// TSV field writes a blank node as `_:label` (§4.1); an anonymous `[]`,
+    /// which Turtle would turn into a fresh node, is rejected.
     init(tsv field: String) throws {
-        let carrier = "<" + RDF.value.metadata.id.rawValue + ">"
-        let triples: Graph
-        do {
-            triples = try TurtleDecoder().decode(carrier + " " + carrier + " " + field + " .")
-        } catch {
-            throw SPARQLError.decodingFailure("TSV field \(field) is not a term: \(error)")
+        let carrier = "<urn:uuid:" + UUID().uuidString.lowercased() + ">"
+        let statement = carrier + " " + carrier + " <<( " + carrier + " " + carrier + " " + field + "\n)>> .\n"
+        let read = { (document: String) throws -> Graph in
+            do {
+                return try TurtleDecoder().decode(document)
+            } catch {
+                throw SPARQLError.decodingFailure("TSV field \(field) is not a term: \(error)")
+            }
         }
-        guard triples.count == 1, let triple = triples.first else {
+        guard let triple = try read(statement).only, case .tripleTerm(let carried) = triple.object else {
             throw SPARQLError.decodingFailure("TSV field \(field) is not a single term.")
         }
-        self = triple.object
+        let term = carried.object
+
+        // Every blank node the field writes as `_:label` keeps its label when
+        // the labels b1 … bN that the decoder would give anonymous nodes are
+        // already written before the field. An anonymous node then gets a
+        // label after bN, so its term differs.
+        let count = term.blankNodeOccurrences
+        if count > 0 {
+            let claimed = (1 ... count).map { "_:b\($0)" }.joined(separator: " , ")
+            let relabelled = try read(carrier + " " + carrier + " " + claimed + " .\n" + statement).compactMap { triple in
+                if case .tripleTerm(let carried) = triple.object { return carried.object }
+                return nil
+            }
+            guard relabelled == [term] else {
+                throw SPARQLError.decodingFailure("TSV field \(field) writes a blank node that is not _:label.")
+            }
+        }
+        self = term
     }
 
     /// A CSV field (SPARQL 1.2 Query Results CSV and TSV Formats §3.1). CSV
@@ -99,6 +128,29 @@ extension IRI {
             self = try IRI(validating: text)
         } catch {
             throw SPARQLError.decodingFailure("<\(text)> is not an absolute IRI.")
+        }
+    }
+}
+
+private extension Graph {
+    /// The one triple of a graph that has exactly one.
+    var only: Element? {
+        count == 1 ? first : nil
+    }
+}
+
+private extension ObjectTerm {
+    /// How many times a blank node occurs in this term, through any triple
+    /// terms it holds.
+    var blankNodeOccurrences: Int {
+        switch self {
+        case .blankNode:
+            return 1
+        case .tripleTerm(let triple):
+            let subject = if case .blankNode = triple.subject { 1 } else { 0 }
+            return subject + triple.object.blankNodeOccurrences
+        case .iri, .literal:
+            return 0
         }
     }
 }

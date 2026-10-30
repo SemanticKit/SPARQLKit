@@ -50,11 +50,20 @@ struct SPARQLGraphStoreClientTests {
         _ = try await client(session).putGraph([triple], graph: .named(named), conditional: SPARQLConditionalRequest(ifNoneMatch: "*"))
 
         let request = try #require(session.lastRequest)
-        #expect(request.url?.absoluteString == "https://example.org/graphs?graph=https://example.org/g")
+        #expect(request.url?.absoluteString == "https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg")
         #expect(request.httpMethod == "PUT")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/n-triples")
         #expect(request.value(forHTTPHeaderField: "If-None-Match") == "*")
         #expect(request.bodyText == "<http://example.org/s> <http://example.org/p> <http://example.org/o> .\n")
+    }
+
+    @Test("A named graph IRI is percent-encoded in the graph parameter, '+' included", .tags(.security))
+    func namedGraphIsPercentEncoded() async throws {
+        let session = MockSession()
+        _ = try await client(session).deleteGraph(.named("https://example.org/g?a=1&b=c+d"))
+
+        #expect(session.lastRequest?.url?.absoluteString
+            == "https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg%3Fa%3D1%26b%3Dc%2Bd")
     }
 
     @Test("POST to the default graph and to the store")
@@ -73,7 +82,7 @@ struct SPARQLGraphStoreClientTests {
         let session = MockSession()
         _ = try await client(session).deleteGraph(.named(named))
         #expect(session.lastRequest?.httpMethod == "DELETE")
-        #expect(session.lastRequest?.url?.absoluteString == "https://example.org/graphs?graph=https://example.org/g")
+        #expect(session.lastRequest?.url?.absoluteString == "https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg")
 
         let response = try await client(session).headGraph(
             .named(named),
@@ -144,8 +153,8 @@ struct SPARQLGraphStoreClientTests {
             object: .iri("https://example.org/c")
         )])
         #expect(try await client(session).getGraph(.named(named), accept: .turtle) == [Graph.Element(
-            subject: .iri("https://example.org/graphs?graph=https://example.org/g#a"),
-            predicate: "https://example.org/graphs?graph=https://example.org/g#b",
+            subject: .iri("https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg#a"),
+            predicate: "https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg#b",
             object: .iri("https://example.org/c")
         )])
     }

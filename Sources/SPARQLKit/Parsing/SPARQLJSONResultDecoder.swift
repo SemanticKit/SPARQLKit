@@ -31,7 +31,7 @@ public struct SPARQLJSONResultDecoder: Sendable {
     public func decode(_ data: Data, contentType: String?) throws -> SPARQLDecodedQueryResult {
         do {
             let response = try JSONDecoder().decode(JSONResultResponse.self, from: data)
-            let announcedVersion = response.version ?? versionParameter(from: contentType)
+            let announcedVersion = response.version ?? contentType.flatMap { MediaType($0)[parameter: "version"] }
 
             if let boolean = response.boolean {
                 guard response.results == nil else {
@@ -76,36 +76,6 @@ public struct SPARQLJSONResultDecoder: Sendable {
         case .boolean:
             throw SPARQLError.decodingFailure("Expected bindings payload, found boolean ASK result.")
         }
-    }
-}
-
-private extension SPARQLJSONResultDecoder {
-    func versionParameter(from contentType: String?) -> String? {
-        guard let contentType else {
-            return nil
-        }
-
-        let parameters = contentType.split(separator: ";").dropFirst()
-        for parameter in parameters {
-            let keyValue = parameter.split(separator: "=", maxSplits: 1)
-            guard keyValue.count == 2 else {
-                continue
-            }
-            let key = keyValue[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard key == "version" else {
-                continue
-            }
-            var value = keyValue[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
-                value.removeFirst()
-                value.removeLast()
-            }
-            if !value.isEmpty {
-                return value
-            }
-        }
-
-        return nil
     }
 }
 

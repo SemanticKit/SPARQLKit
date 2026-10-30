@@ -15,5 +15,5 @@
 
 <#render-query>
    a sk:RenderQueryTest ;
-   sk:queryTemplate "basicSelect" ;
+   sk:queryTemplate [ a sk:BasicSelectQuery ] ;
    sk:expectContains "SELECT ?s ?o" , "LIMIT 5" .

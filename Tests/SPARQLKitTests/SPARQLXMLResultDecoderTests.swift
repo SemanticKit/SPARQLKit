@@ -30,6 +30,14 @@ struct SPARQLXMLResultDecoderTests {
         }
     }
 
+    @Test("A boolean that is neither true nor false is rejected")
+    func invalidBooleanFails() {
+        let data = Data(#"<?xml version="1.0"?><sparql xmlns="http://www.w3.org/2005/sparql-results#"><head/><boolean>yes</boolean></sparql>"#.utf8)
+        #expect(throws: SPARQLError.decodingFailure("<boolean> holds 'yes', not true or false.")) {
+            _ = try (decoder.decode(data) as SPARQLQueryResult)
+        }
+    }
+
     @Test("A document with both a boolean and results is rejected")
     func mixedDocumentFails() throws {
         let data = try fixture("invalid_mixed_result.xml")

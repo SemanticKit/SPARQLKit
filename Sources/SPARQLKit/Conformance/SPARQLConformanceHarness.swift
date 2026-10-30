@@ -7,7 +7,9 @@ import RDFCore
 import RDFFormats
 import RDFKit
 
-public struct SPARQLConformanceSuite: Codable, Sendable {
+/// The cases of one conformance run, read from W3C test manifests by
+/// ``SPARQLW3CManifestLoader``.
+public struct SPARQLConformanceSuite: Sendable {
     public let name: String
     public let cases: [SPARQLConformanceCase]
 
@@ -17,11 +19,17 @@ public struct SPARQLConformanceSuite: Codable, Sendable {
     }
 }
 
-public struct SPARQLConformanceCase: Codable, Sendable {
+/// One manifest entry: the test it is an individual of and what the test
+/// expects.
+public struct SPARQLConformanceCase: Sendable {
     public let id: String
-    public let operation: SPARQLConformanceOperation
+    /// The test class the entry's `rdf:type` names, as its generated
+    /// individual: running the case is behaviour on that type.
+    public let test: any SPARQLConformanceTest
     public let fixtureFile: String?
-    public let queryTemplate: SPARQLConformanceQueryTemplate?
+    /// The typed query a render case renders: the generated individual of
+    /// the class its `sk:queryTemplate` node is typed with.
+    public let queryTemplate: (any SPARQLConformanceQueryTemplate)?
     public let queryText: String?
     public let updateText: String?
     public let defaultGraphs: [IRI]
@@ -37,31 +45,11 @@ public struct SPARQLConformanceCase: Codable, Sendable {
     public let expectBodyContains: [String]
     public let expectHeaderContains: [String]
 
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case operation
-        case fixtureFile
-        case queryTemplate
-        case queryText
-        case updateText
-        case defaultGraphs
-        case namedGraphs
-        case usingGraphs
-        case usingNamedGraphs
-        case expectVariableCount
-        case expectBindingCount
-        case expectBoolean
-        case expectContains
-        case expectURLContains
-        case expectBodyContains
-        case expectHeaderContains
-    }
-
     public init(
         id: String,
-        operation: SPARQLConformanceOperation,
+        test: any SPARQLConformanceTest,
         fixtureFile: String? = nil,
-        queryTemplate: SPARQLConformanceQueryTemplate? = nil,
+        queryTemplate: (any SPARQLConformanceQueryTemplate)? = nil,
         queryText: String? = nil,
         updateText: String? = nil,
         defaultGraphs: [IRI] = [],
@@ -77,7 +65,7 @@ public struct SPARQLConformanceCase: Codable, Sendable {
         expectHeaderContains: [String] = []
     ) {
         self.id = id
-        self.operation = operation
+        self.test = test
         self.fixtureFile = fixtureFile
         self.queryTemplate = queryTemplate
         self.queryText = queryText
@@ -94,51 +82,6 @@ public struct SPARQLConformanceCase: Codable, Sendable {
         self.expectBodyContains = expectBodyContains
         self.expectHeaderContains = expectHeaderContains
     }
-
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        operation = try container.decode(SPARQLConformanceOperation.self, forKey: .operation)
-        fixtureFile = try container.decodeIfPresent(String.self, forKey: .fixtureFile)
-        queryTemplate = try container.decodeIfPresent(SPARQLConformanceQueryTemplate.self, forKey: .queryTemplate)
-        queryText = try container.decodeIfPresent(String.self, forKey: .queryText)
-        updateText = try container.decodeIfPresent(String.self, forKey: .updateText)
-        defaultGraphs = try container.decodeIfPresent([IRI].self, forKey: .defaultGraphs) ?? []
-        namedGraphs = try container.decodeIfPresent([IRI].self, forKey: .namedGraphs) ?? []
-        usingGraphs = try container.decodeIfPresent([IRI].self, forKey: .usingGraphs) ?? []
-        usingNamedGraphs = try container.decodeIfPresent([IRI].self, forKey: .usingNamedGraphs) ?? []
-        expectVariableCount = try container.decodeIfPresent(Int.self, forKey: .expectVariableCount)
-        expectBindingCount = try container.decodeIfPresent(Int.self, forKey: .expectBindingCount)
-        expectBoolean = try container.decodeIfPresent(Bool.self, forKey: .expectBoolean)
-        expectContains = try container.decodeIfPresent([String].self, forKey: .expectContains) ?? []
-        expectURLContains = try container.decodeIfPresent([String].self, forKey: .expectURLContains) ?? []
-        expectBodyContains = try container.decodeIfPresent([String].self, forKey: .expectBodyContains) ?? []
-        expectHeaderContains = try container.decodeIfPresent([String].self, forKey: .expectHeaderContains) ?? []
-    }
-}
-
-public enum SPARQLConformanceOperation: String, Codable, Sendable {
-    case decodeJSONBindings
-    case decodeJSONBoolean
-    case decodeXMLBindings
-    case decodeXMLBoolean
-    case decodeCSVBindings
-    case decodeTSVBindings
-    case renderQuery
-    case buildGETQueryRequest
-    case buildPOSTQueryRequest
-    case buildGETGraphQueryRequest
-    case buildPOSTGraphQueryRequest
-    case buildPOSTUpdateRequest
-    case buildGETDefaultGraphStoreRequest
-    case buildHEADNamedGraphStoreRequest
-    case buildPOSTServiceGraphStoreRequest
-    case buildPUTNamedGraphStoreRequest
-    case buildDELETENamedGraphStoreRequest
-}
-
-public enum SPARQLConformanceQueryTemplate: String, Codable, Sendable {
-    case basicSelect
 }
 
 public struct SPARQLConformanceCaseResult: Sendable {
@@ -188,7 +131,7 @@ public struct SPARQLConformanceRunner {
     ) -> SPARQLConformanceReport {
         let results = suite.cases.map { testCase in
             do {
-                try runCase(testCase, loadFixture: loadFixture)
+                try testCase.test.run(testCase, loadFixture: loadFixture)
                 if expectedFailures.contains(testCase.id) {
                     return SPARQLConformanceCaseResult(
                         id: testCase.id,
@@ -217,231 +160,55 @@ public struct SPARQLConformanceRunner {
 
         return SPARQLConformanceReport(suiteName: suite.name, results: results)
     }
+}
 
-    private func runCase(
-        _ testCase: SPARQLConformanceCase,
-        loadFixture: (String) throws -> Data
-    ) throws {
-        switch testCase.operation {
-        case .decodeJSONBindings:
-            let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result: SPARQLResultSet = try SPARQLJSONResultDecoder().decode(data)
-            try assertBindings(result, testCase: testCase)
-
-        case .decodeJSONBoolean:
-            let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result: SPARQLQueryResult = try SPARQLJSONResultDecoder().decode(data)
-            guard case let .boolean(value) = result else {
-                throw SPARQLConformanceError.expectedBooleanResult(testCase.id)
-            }
-            if let expected = testCase.expectBoolean, expected != value {
-                throw SPARQLConformanceError.assertionFailed(
-                    "Case \(testCase.id): expected boolean \(expected), got \(value)."
-                )
-            }
-
-        case .decodeXMLBindings:
-            let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result: SPARQLResultSet = try SPARQLXMLResultDecoder().decode(data)
-            try assertBindings(result, testCase: testCase)
-
-        case .decodeXMLBoolean:
-            let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result: SPARQLQueryResult = try SPARQLXMLResultDecoder().decode(data)
-            guard case let .boolean(value) = result else {
-                throw SPARQLConformanceError.expectedBooleanResult(testCase.id)
-            }
-            if let expected = testCase.expectBoolean, expected != value {
-                throw SPARQLConformanceError.assertionFailed(
-                    "Case \(testCase.id): expected boolean \(expected), got \(value)."
-                )
-            }
-
-        case .decodeCSVBindings:
-            let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLCSVResultDecoder().decode(data)
-            try assertBindings(result, testCase: testCase)
-
-        case .decodeTSVBindings:
-            let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLTSVResultDecoder().decode(data)
-            try assertBindings(result, testCase: testCase)
-
-        case .renderQuery:
-            let rendered = try renderTemplate(for: testCase)
-            for expected in testCase.expectContains {
-                if !rendered.contains(expected) {
-                    throw SPARQLConformanceError.assertionFailed(
-                        "Case \(testCase.id): missing rendered fragment '\(expected)'."
-                    )
-                }
-            }
-
-        case .buildGETQueryRequest:
-            let query = try requireQueryText(testCase, loadFixture: loadFixture)
-            let client = makeProtocolClient()
-            let accept = SPARQLAccept.jsonResults.rawValue
-            let request = try client.makeQueryRequest(
-                query,
-                accept: accept,
-                method: .get,
-                options: SPARQLQueryRequestOptions(
-                    defaultGraphs: testCase.defaultGraphs,
-                    namedGraphs: testCase.namedGraphs
-                )
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "GET")
-
-        case .buildPOSTQueryRequest:
-            let query = try requireQueryText(testCase, loadFixture: loadFixture)
-            let client = makeProtocolClient()
-            let accept = SPARQLAccept.jsonResults.rawValue
-            let request = try client.makeQueryRequest(
-                query,
-                accept: accept,
-                method: .post,
-                options: SPARQLQueryRequestOptions(
-                    defaultGraphs: testCase.defaultGraphs,
-                    namedGraphs: testCase.namedGraphs
-                )
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "POST")
-
-        case .buildGETGraphQueryRequest:
-            let query = try requireQueryText(testCase, loadFixture: loadFixture)
-            let client = makeProtocolClient()
-            let request = try client.makeQueryRequest(
-                query,
-                accept: SPARQLGraphAccept.turtle.rawValue,
-                method: .get,
-                options: SPARQLQueryRequestOptions(
-                    defaultGraphs: testCase.defaultGraphs,
-                    namedGraphs: testCase.namedGraphs
-                )
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "GET")
-
-        case .buildPOSTGraphQueryRequest:
-            let query = try requireQueryText(testCase, loadFixture: loadFixture)
-            let client = makeProtocolClient()
-            let request = try client.makeQueryRequest(
-                query,
-                accept: SPARQLGraphAccept.turtle.rawValue,
-                method: .post,
-                options: SPARQLQueryRequestOptions(
-                    defaultGraphs: testCase.defaultGraphs,
-                    namedGraphs: testCase.namedGraphs
-                )
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "POST")
-
-        case .buildPOSTUpdateRequest:
-            let update = try requireUpdateText(testCase, loadFixture: loadFixture)
-            let client = makeProtocolClient()
-            let request = try client.makeUpdateRequest(
-                update,
-                options: SPARQLUpdateRequestOptions(
-                    usingGraphs: testCase.usingGraphs,
-                    usingNamedGraphs: testCase.usingNamedGraphs
-                )
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "POST")
-
-        case .buildGETDefaultGraphStoreRequest:
-            let client = makeGraphStoreClient()
-            let request = try client.makeRequest(
-                method: "GET",
-                graph: .defaultGraph,
-                accept: SPARQLGraphAccept.turtle.rawValue
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "GET")
-
-        case .buildHEADNamedGraphStoreRequest:
-            let iri = try requireNamedGraphIRI(testCase)
-            let client = makeGraphStoreClient()
-            let request = try client.makeRequest(
-                method: "HEAD",
-                graph: .named(iri)
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "HEAD")
-
-        case .buildPOSTServiceGraphStoreRequest:
-            let client = makeGraphStoreClient()
-            let request = try client.makeRequest(
-                method: "POST",
-                graph: .service,
-                contentType: SPARQLGraphAccept.ntriples.rawValue,
-                body: Data(NTriplesEncoder().encode(Graph([Self.graphStoreTriple])).utf8)
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "POST")
-
-        case .buildPUTNamedGraphStoreRequest:
-            let iri = try requireNamedGraphIRI(testCase)
-            let client = makeGraphStoreClient()
-            let request = try client.makeRequest(
-                method: "PUT",
-                graph: .named(iri),
-                contentType: SPARQLGraphAccept.ntriples.rawValue,
-                body: Data(NTriplesEncoder().encode(Graph([Self.graphStoreTriple])).utf8)
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "PUT")
-
-        case .buildDELETENamedGraphStoreRequest:
-            let iri = try requireNamedGraphIRI(testCase)
-            let client = makeGraphStoreClient()
-            let request = try client.makeRequest(
-                method: "DELETE",
-                graph: .named(iri)
-            )
-            try assertRequest(request, testCase: testCase, expectedMethod: "DELETE")
-        }
-    }
-
-    private func fixtureData(
-        for testCase: SPARQLConformanceCase,
-        loadFixture: (String) throws -> Data
-    ) throws -> Data {
-        guard let fixtureFile = testCase.fixtureFile else {
-            throw SPARQLConformanceError.missingFixtureFile(testCase.id)
+/// What every kind of test checks against a case's expectations.
+extension SPARQLConformanceCase {
+    /// The document the case reads.
+    func fixtureData(_ loadFixture: (String) throws -> Data) throws -> Data {
+        guard let fixtureFile else {
+            throw SPARQLConformanceError.missingFixtureFile(id)
         }
         return try loadFixture(fixtureFile)
     }
 
-    private func renderTemplate(for testCase: SPARQLConformanceCase) throws -> String {
-        guard let template = testCase.queryTemplate else {
-            throw SPARQLConformanceError.missingQueryTemplate(testCase.id)
-        }
-
-        switch template {
-        case .basicSelect:
-            let query = SPARQLSelectQuery(
-                ["s", "o"],
-                where: [.triple(SPARQLTriplePattern(.variable("s"), .property(RDF.value.sparql), .variable("o")))],
-                limit: 5
-            )
-            return query.render()
-        }
+    /// The query the case sends: its `sk:query`, or the query document its
+    /// manifest entry names.
+    func query(_ loadFixture: (String) throws -> Data) throws -> String {
+        try queryText ?? document(loadFixture, missing: "queryText", kind: "query")
     }
 
-    private func assertBindings(_ resultSet: SPARQLResultSet, testCase: SPARQLConformanceCase) throws {
-        if let expectedVariables = testCase.expectVariableCount,
-           resultSet.variables.count != expectedVariables
-        {
-            throw SPARQLConformanceError.assertionFailed(
-                "Case \(testCase.id): expected variable count \(expectedVariables), got \(resultSet.variables.count)."
-            )
-        }
-
-        if let expectedBindings = testCase.expectBindingCount,
-           resultSet.bindings.count != expectedBindings
-        {
-            throw SPARQLConformanceError.assertionFailed(
-                "Case \(testCase.id): expected binding count \(expectedBindings), got \(resultSet.bindings.count)."
-            )
-        }
+    /// The update the case sends: its `sk:update`, or the update document
+    /// its manifest entry names.
+    func update(_ loadFixture: (String) throws -> Data) throws -> String {
+        try updateText ?? document(loadFixture, missing: "updateText", kind: "update")
     }
 
-    private func makeProtocolClient() -> SPARQLEndpointClient {
+    private func document(_ loadFixture: (String) throws -> Data, missing: String, kind: String) throws -> String {
+        guard let fixtureFile else {
+            throw SPARQLConformanceError.assertionFailed("Case \(id): missing \(missing).")
+        }
+        guard let text = String(data: try loadFixture(fixtureFile), encoding: .utf8) else {
+            throw SPARQLConformanceError.assertionFailed("Case \(id): \(kind) fixture is not UTF-8.")
+        }
+        return text
+    }
+
+    /// The named graph a Graph Store case addresses.
+    func namedGraph() throws -> IRI {
+        if let iri = namedGraphs.first {
+            return iri
+        }
+        throw SPARQLConformanceError.assertionFailed("Case \(id): missing named graph IRI for graph-store request.")
+    }
+
+    /// The query dataset the case sends.
+    var queryOptions: SPARQLQueryRequestOptions {
+        SPARQLQueryRequestOptions(defaultGraphs: defaultGraphs, namedGraphs: namedGraphs)
+    }
+
+    /// The client protocol cases build their requests with.
+    var endpointClient: SPARQLEndpointClient {
         SPARQLEndpointClient(
             configuration: SPARQLEndpointConfiguration(
                 queryURL: URL(string: "https://example.org/sparql")!,
@@ -450,7 +217,8 @@ public struct SPARQLConformanceRunner {
         )
     }
 
-    private func makeGraphStoreClient() -> SPARQLGraphStoreClient {
+    /// The client Graph Store cases build their requests with.
+    var graphStoreClient: SPARQLGraphStoreClient {
         SPARQLGraphStoreClient(
             configuration: SPARQLGraphStoreConfiguration(
                 graphStoreURL: URL(string: "https://example.org/graph-store")!
@@ -458,84 +226,66 @@ public struct SPARQLConformanceRunner {
         )
     }
 
-    private func requireQueryText(
-        _ testCase: SPARQLConformanceCase,
-        loadFixture: (String) throws -> Data
-    ) throws -> String {
-        if let query = testCase.queryText {
-            return query
-        }
-        guard let fixtureFile = testCase.fixtureFile else {
-            throw SPARQLConformanceError.assertionFailed("Case \(testCase.id): missing queryText.")
-        }
-        let data = try loadFixture(fixtureFile)
-        guard let query = String(data: data, encoding: .utf8) else {
-            throw SPARQLConformanceError.assertionFailed("Case \(testCase.id): query fixture is not UTF-8.")
-        }
-        return query
+    /// The triples a Graph Store case sends, as N-Triples.
+    var graphStoreBody: Data {
+        let triple = Graph.Element(
+            subject: .iri("http://example.org/s"),
+            predicate: "http://example.org/p",
+            object: .iri("http://example.org/o")
+        )
+        return Data(NTriplesEncoder().encode(Graph([triple])).utf8)
     }
 
-    private func requireUpdateText(
-        _ testCase: SPARQLConformanceCase,
-        loadFixture: (String) throws -> Data
-    ) throws -> String {
-        if let update = testCase.updateText {
-            return update
+    func expectBindings(_ resultSet: SPARQLResultSet) throws {
+        if let expectedVariables = expectVariableCount, resultSet.variables.count != expectedVariables {
+            throw SPARQLConformanceError.assertionFailed(
+                "Case \(id): expected variable count \(expectedVariables), got \(resultSet.variables.count)."
+            )
         }
-        guard let fixtureFile = testCase.fixtureFile else {
-            throw SPARQLConformanceError.assertionFailed("Case \(testCase.id): missing updateText.")
+        if let expectedBindings = expectBindingCount, resultSet.bindings.count != expectedBindings {
+            throw SPARQLConformanceError.assertionFailed(
+                "Case \(id): expected binding count \(expectedBindings), got \(resultSet.bindings.count)."
+            )
         }
-        let data = try loadFixture(fixtureFile)
-        guard let update = String(data: data, encoding: .utf8) else {
-            throw SPARQLConformanceError.assertionFailed("Case \(testCase.id): update fixture is not UTF-8.")
-        }
-        return update
     }
 
-    private func requireNamedGraphIRI(_ testCase: SPARQLConformanceCase) throws -> IRI {
-        if let iri = testCase.namedGraphs.first {
-            return iri
+    func expectBoolean(_ result: SPARQLQueryResult) throws {
+        guard case let .boolean(value) = result else {
+            throw SPARQLConformanceError.expectedBooleanResult(id)
         }
-        throw SPARQLConformanceError.assertionFailed("Case \(testCase.id): missing named graph IRI for graph-store request.")
+        if let expected = expectBoolean, expected != value {
+            throw SPARQLConformanceError.assertionFailed("Case \(id): expected boolean \(expected), got \(value).")
+        }
     }
 
-    /// The triple a graph store case sends.
-    static let graphStoreTriple = Graph.Element(
-        subject: .iri("http://example.org/s"),
-        predicate: "http://example.org/p",
-        object: .iri("http://example.org/o")
-    )
+    func expectRendered(_ rendered: String) throws {
+        for expected in expectContains where !rendered.contains(expected) {
+            throw SPARQLConformanceError.assertionFailed("Case \(id): missing rendered fragment '\(expected)'.")
+        }
+    }
 
-    private func assertRequest(
-        _ request: URLRequest,
-        testCase: SPARQLConformanceCase,
-        expectedMethod: String
-    ) throws {
+    func expectRequest(_ request: URLRequest, method expectedMethod: String) throws {
         if request.httpMethod != expectedMethod {
             throw SPARQLConformanceError.assertionFailed(
-                "Case \(testCase.id): expected HTTP method \(expectedMethod), got \(request.httpMethod ?? "<nil>")."
+                "Case \(id): expected HTTP method \(expectedMethod), got \(request.httpMethod ?? "<nil>")."
             )
         }
 
         let url = request.url?.absoluteString ?? ""
-        for expected in testCase.expectURLContains where !url.contains(expected) {
-            throw SPARQLConformanceError.assertionFailed(
-                "Case \(testCase.id): URL missing fragment '\(expected)'. URL=\(url)"
-            )
+        for expected in expectURLContains where !url.contains(expected) {
+            throw SPARQLConformanceError.assertionFailed("Case \(id): URL missing fragment '\(expected)'. URL=\(url)")
         }
 
         let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
-        for expected in testCase.expectBodyContains where !body.contains(expected) {
-            throw SPARQLConformanceError.assertionFailed(
-                "Case \(testCase.id): body missing fragment '\(expected)'. body=\(body)"
-            )
+        for expected in expectBodyContains where !body.contains(expected) {
+            throw SPARQLConformanceError.assertionFailed("Case \(id): body missing fragment '\(expected)'. body=\(body)")
         }
 
-        for expected in testCase.expectHeaderContains {
+        for expected in expectHeaderContains {
             let parts = expected.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2 else {
                 throw SPARQLConformanceError.assertionFailed(
-                    "Case \(testCase.id): invalid header expectation '\(expected)'. Use 'Header:fragment'."
+                    "Case \(id): invalid header expectation '\(expected)'. Use 'Header:fragment'."
                 )
             }
             let headerName = String(parts[0]).trimmingCharacters(in: .whitespaces)
@@ -543,7 +293,7 @@ public struct SPARQLConformanceRunner {
             let actual = request.value(forHTTPHeaderField: headerName) ?? ""
             if !actual.contains(expectedFragment) {
                 throw SPARQLConformanceError.assertionFailed(
-                    "Case \(testCase.id): header '\(headerName)' missing fragment '\(expectedFragment)'. actual=\(actual)"
+                    "Case \(id): header '\(headerName)' missing fragment '\(expectedFragment)'. actual=\(actual)"
                 )
             }
         }

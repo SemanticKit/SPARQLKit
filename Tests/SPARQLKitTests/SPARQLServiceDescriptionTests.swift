@@ -102,6 +102,46 @@ struct SPARQLServiceDescriptionTests {
         #expect(decoded.contains { $0 === Formats.RDFa })
     }
 
+    @Test("Every entailment regime the Entailment vocabulary declares decodes into its individual", .tags(.vocabulary))
+    func decodesEveryDeclaredRegime() throws {
+        // The individuals the Entailment ontology declares: the decoder must
+        // know each of them, so the vocabulary and the decoder cannot drift.
+        let declaredNames = Entailment().entities.compactMap { ($0 as? RDFCore.Individual)?.localName }
+        let turtle = """
+            @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+            @prefix ent: <http://www.w3.org/ns/entailment/> .
+            <https://example.org/sparql> a sd:Service ;
+              sd:entailmentRegime \(declaredNames.map { "ent:" + $0 }.joined(separator: " , ")) .
+            """
+        let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle).entailmentRegimes
+
+        #expect(declaredNames.count == 7)
+        #expect(decoded.map { type(of: $0 as any RDFCore.Entity).metadata.name } == declaredNames)
+    }
+
+    @Test("Every language and feature the service description vocabulary declares decodes into its individual", .tags(.vocabulary))
+    func decodesEveryDeclaredFeature() throws {
+        // Every individual sd declares is a feature (sd:Language is a
+        // subclass of sd:Feature), and its languages are those whose names
+        // the decoder reads as sd:supportedLanguage.
+        let declaredNames = ServiceDescription().entities.compactMap { ($0 as? RDFCore.Individual)?.localName }
+        let list = declaredNames.map { "sd:" + $0 }.joined(separator: " , ")
+        let turtle = """
+            @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+            <https://example.org/sparql> a sd:Service ;
+              sd:feature \(list) ;
+              sd:supportedLanguage \(list) .
+            """
+        let description = try SPARQLServiceDescriptionDecoder().decode(turtle)
+        let featureNames = description.features.map { type(of: $0 as any RDFCore.Entity).metadata.name }
+        let languageNames = description.supportedLanguages.map { type(of: $0 as any RDFCore.Entity).metadata.name }
+
+        #expect(declaredNames.count == 10)
+        #expect(Set(featureNames) == Set(declaredNames))
+        #expect(featureNames.count == declaredNames.count)
+        #expect(Set(languageNames) == ["SPARQL10Query", "SPARQL11Query", "SPARQL11Update", "SPARQL12Query", "SPARQL12Update"])
+    }
+
     @Test("An IRI names the declared individual whose type carries it", .tags(.vocabulary))
     func iriNamesDeclaredIndividual() {
         let regimes: [any ServiceDescription.EntailmentRegime] = [Entailment.RDFS, Entailment.OWL_Direct]

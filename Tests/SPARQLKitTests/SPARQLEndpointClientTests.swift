@@ -44,13 +44,39 @@ struct SPARQLEndpointClientTests {
 
         let request = try #require(session.lastRequest)
         let url = try #require(request.url?.absoluteString)
-        #expect(url.hasPrefix("https://example.org/sparql?query=SELECT%20?s"))
-        #expect(url.contains("default-graph-uri=https://example.org/graphs/default"))
-        #expect(url.contains("named-graph-uri=https://example.org/graphs/n1&named-graph-uri=https://example.org/graphs/n2"))
+        #expect(url.hasPrefix("https://example.org/sparql?query=SELECT%20%3Fs"))
+        #expect(url.contains("default-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fdefault"))
+        #expect(url.contains("named-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fn1&named-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fn2"))
         #expect(request.httpMethod == "GET")
         #expect(request.value(forHTTPHeaderField: "Accept") == SPARQLAccept.jsonResults.rawValue)
         #expect(request.value(forHTTPHeaderField: "X-Client") == "SPARQLKit")
         #expect(request.timeoutInterval == 12)
+    }
+
+    @Test("GET percent-encodes '+' in paths and arithmetic, so it is not read back as a space", .tags(.security))
+    func getEncodesPlus() async throws {
+        let session = MockSession(body: #"{"head":{"vars":["o"]},"results":{"bindings":[]}}"#)
+        let query = SPARQLSelectQuery(["o"], where: [
+            .triple(SPARQLTriplePattern(.variable("s"), .path(.oneOrMore(.property(Foaf.knows.sparql))), .variable("o"))),
+            .bind(.binary(.variable("n"), .add, .literal(try Literal("1", datatype: XSD.integer.metadata.id))), as: "m")
+        ])
+        _ = try await client(session).executeSelect(query, method: .get, options: SPARQLQueryRequestOptions(
+            defaultGraphs: ["https://example.org/graphs/a+b"]
+        ))
+
+        let request = try #require(session.lastRequest)
+        let url = try #require(request.url)
+        let encodedQuery = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery)
+        #expect(!encodedQuery.contains("+"))
+        #expect(encodedQuery.contains("%2B"))
+        // Form decoding, as an endpoint reads the query string: '+' is a
+        // space, and percent escapes are bytes.
+        let parameters = encodedQuery.split(separator: "&").map { pair in
+            let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
+            return (parts[0], parts[1].replacingOccurrences(of: "+", with: " ").removingPercentEncoding ?? "")
+        }
+        #expect(parameters.first { $0.0 == "query" }?.1 == query.render())
+        #expect(parameters.first { $0.0 == "default-graph-uri" }?.1 == "https://example.org/graphs/a+b")
     }
 
     @Test("POST form-encodes the rendered query and dataset")

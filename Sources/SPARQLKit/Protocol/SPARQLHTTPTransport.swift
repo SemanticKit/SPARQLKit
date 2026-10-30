@@ -18,8 +18,8 @@ public struct EndpointAuthentication: Sendable {
     }
 }
 
-/// The HTTP plumbing both protocol clients share: headers, authentication,
-/// form encoding and status handling.
+/// The HTTP plumbing both protocol clients share: headers, authentication
+/// and status handling.
 struct SPARQLHTTPTransport: Sendable {
     let defaultHeaders: [String: String]
     let authentication: EndpointAuthentication?
@@ -66,15 +66,6 @@ struct SPARQLHTTPTransport: Sendable {
             throw SPARQLError.httpStatus(http.statusCode, body: String(data: data, encoding: .utf8) ?? "")
         }
         return (data, http)
-    }
-
-    /// An `application/x-www-form-urlencoded` body.
-    func formURLEncoded(_ pairs: [(String, String)]) -> Data {
-        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
-        let encoded = pairs
-            .map { $0.0 + "=" + ($0.1.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0.1) }
-            .joined(separator: "&")
-        return Data(encoded.utf8)
     }
 
     private func validateHeader(name: String, value: String) throws {

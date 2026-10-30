@@ -53,6 +53,16 @@ public struct SPARQLConformance: Ontology {
             Label("Protocol POST query request test")
             Comment("A SPARQL Protocol query request sent with POST.")
         }
+        Class("ProtocolGetGraphQueryRequestTest") {
+            Type(RDFS.Class)
+            Label("Protocol GET graph query request test")
+            Comment("A SPARQL Protocol CONSTRUCT or DESCRIBE request sent with GET, asking for Turtle.")
+        }
+        Class("ProtocolPostGraphQueryRequestTest") {
+            Type(RDFS.Class)
+            Label("Protocol POST graph query request test")
+            Comment("A SPARQL Protocol CONSTRUCT or DESCRIBE request sent with POST, asking for Turtle.")
+        }
         Class("ProtocolPostUpdateRequestTest") {
             Type(RDFS.Class)
             Label("Protocol POST update request test")
@@ -84,7 +94,20 @@ public struct SPARQLConformance: Ontology {
             Comment("A Graph Store Protocol DELETE of a named graph.")
         }
 
+        Class("QueryTemplate") {
+            Type(RDFS.Class)
+            Label("Query template")
+            Comment("A typed query that SPARQLKit builds and a render case renders.")
+        }
+        Class("BasicSelectQuery") {
+            Type(RDFS.Class)
+            SubClassOf(SPARQLConformance.QueryTemplate)
+            Label("Basic SELECT query")
+            Comment("The typed SELECT of ?s and ?o over ?s rdf:value ?o, limited to 5 solutions.")
+        }
+
         Property("queryTemplate") {
+            Range(SPARQLConformance.QueryTemplate)
             Label("query template")
             Comment("The typed query a render case renders.")
         }

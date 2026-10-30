@@ -1,4 +1,5 @@
 import Foundation
+import RDFCore
 import Testing
 @testable import SPARQLKit
 
@@ -37,7 +38,7 @@ struct SPARQLW3CManifestLoaderTests {
             _ = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle)
             Issue.record("Expected unsupported operation error.")
         } catch let error as SPARQLW3CManifestError {
-            if case .unsupportedOperation = error {
+            if case .unsupportedTest = error {
                 #expect(Bool(true))
             } else {
                 Issue.record("Unexpected loader error: \(error)")
@@ -159,9 +160,9 @@ struct SPARQLW3CManifestLoaderTests {
             baseURL: URL(string: "https://example.org/manifests/mf-mapping.ttl")
         )
         #expect(suite.cases.count == 3)
-        #expect(suite.cases[0].operation == .decodeCSVBindings)
-        #expect(suite.cases[1].operation == .decodeXMLBindings)
-        #expect(suite.cases[2].operation == .decodeJSONBindings)
+        #expect(suite.cases[0].test is TestManifest.CSVResultFormatTestIndividual)
+        #expect(suite.cases[1].test is SPARQLConformance.DecodeXMLBindingsTestIndividual)
+        #expect(suite.cases[2].test is SPARQLConformance.DecodeJSONBindingsTestIndividual)
     }
 
     @Test
@@ -184,8 +185,8 @@ struct SPARQLW3CManifestLoaderTests {
             baseURL: URL(string: "https://example.org/manifests/mf-action-mapping.ttl")
         )
         #expect(suite.cases.count == 2)
-        #expect(suite.cases[0].operation == .buildPOSTQueryRequest)
-        #expect(suite.cases[1].operation == .buildPOSTUpdateRequest)
+        #expect(suite.cases[0].test is TestManifest.QueryEvaluationTestIndividual)
+        #expect(suite.cases[1].test is TestManifest.UpdateEvaluationTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try fixture(fileName)
@@ -219,8 +220,8 @@ struct SPARQLW3CManifestLoaderTests {
             baseURL: URL(string: "https://example.org/manifests/mf-query-graph-inference.ttl")
         )
         #expect(suite.cases.count == 2)
-        #expect(suite.cases[0].operation == .buildPOSTGraphQueryRequest)
-        #expect(suite.cases[1].operation == .buildPOSTQueryRequest)
+        #expect(suite.cases[0].test is TestManifest.QueryEvaluationTestIndividual)
+        #expect(suite.cases[1].test is TestManifest.QueryEvaluationTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try fixture(fileName)
@@ -282,8 +283,8 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases.count == 2)
         #expect(suite.cases[0].fixtureFile == "query_eval.rq")
         #expect(suite.cases[1].fixtureFile == "update_eval.ru")
-        #expect(suite.cases[0].operation == .buildPOSTQueryRequest)
-        #expect(suite.cases[1].operation == .buildPOSTUpdateRequest)
+        #expect(suite.cases[0].test is TestManifest.QueryEvaluationTestIndividual)
+        #expect(suite.cases[1].test is TestManifest.UpdateEvaluationTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try fixture(fileName)
@@ -376,16 +377,16 @@ struct SPARQLW3CManifestLoaderTests {
           sk:expectURLContains "default" .
         <#head-named> a sk:GraphStoreHeadNamedRequestTest ;
           sk:namedGraphURI "https://example.org/graphs/named" ;
-          sk:expectURLContains "graph=https://example.org/graphs/named" .
+          sk:expectURLContains "graph=https%3A%2F%2Fexample.org%2Fgraphs%2Fnamed" .
         <#post-service> a sk:GraphStorePostServiceRequestTest ;
           sk:expectBodyContains "<http://example.org/s> <http://example.org/p> <http://example.org/o> ." .
         <#put-named> a sk:GraphStorePutNamedRequestTest ;
           sk:namedGraphURI "https://example.org/graphs/named-put" ;
-          sk:expectURLContains "graph=https://example.org/graphs/named-put" ;
+          sk:expectURLContains "graph=https%3A%2F%2Fexample.org%2Fgraphs%2Fnamed-put" ;
           sk:expectBodyContains "<http://example.org/s> <http://example.org/p> <http://example.org/o> ." .
         <#delete-named> a sk:GraphStoreDeleteNamedRequestTest ;
           sk:namedGraphURI "https://example.org/graphs/named-delete" ;
-          sk:expectURLContains "graph=https://example.org/graphs/named-delete" .
+          sk:expectURLContains "graph=https%3A%2F%2Fexample.org%2Fgraphs%2Fnamed-delete" .
         """
 
         let suite = try SPARQLW3CManifestLoader().loadSuite(
@@ -393,15 +394,94 @@ struct SPARQLW3CManifestLoaderTests {
             baseURL: URL(string: "https://example.org/manifests/gsp-mapping.ttl")
         )
         #expect(suite.cases.count == 5)
-        #expect(suite.cases[0].operation == .buildGETDefaultGraphStoreRequest)
-        #expect(suite.cases[1].operation == .buildHEADNamedGraphStoreRequest)
-        #expect(suite.cases[2].operation == .buildPOSTServiceGraphStoreRequest)
-        #expect(suite.cases[3].operation == .buildPUTNamedGraphStoreRequest)
-        #expect(suite.cases[4].operation == .buildDELETENamedGraphStoreRequest)
+        #expect(suite.cases[0].test is SPARQLConformance.GraphStoreGetDefaultRequestTestIndividual)
+        #expect(suite.cases[1].test is SPARQLConformance.GraphStoreHeadNamedRequestTestIndividual)
+        #expect(suite.cases[2].test is SPARQLConformance.GraphStorePostServiceRequestTestIndividual)
+        #expect(suite.cases[3].test is SPARQLConformance.GraphStorePutNamedRequestTestIndividual)
+        #expect(suite.cases[4].test is SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try fixture(fileName)
         }
         #expect(report.allPassed)
+    }
+
+    @Test("Every test class the vocabularies declare decodes into a test SPARQLKit runs", .tags(.vocabulary))
+    func everyDeclaredTestClassIsRunnable() throws {
+        // The test classes SPARQLConformance and TestManifest declare: the
+        // loader must know each of them, so the vocabulary and the loader
+        // cannot drift.
+        let classes = SPARQLConformance().entities.compactMap { ($0 as? RDFCore.Class)?.localName }
+            .filter { $0.hasSuffix("Test") }
+            .map { ("sk", $0) }
+            + TestManifest().entities.compactMap { ($0 as? RDFCore.Class)?.localName }
+            .filter { $0.hasSuffix("Test") }
+            .map { ("mf", $0) }
+        let entries = classes.map { "<#\($0.1)>" }.joined(separator: " ")
+        let types = classes.map { "<#\($0.1)> a \($0.0):\($0.1) ." }.joined(separator: "\n")
+        let turtle = """
+        @prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+        @prefix sk: <https://codex.local/sparqlkit/conformance#> .
+
+        <https://example.org/manifests/every-class> a mf:Manifest ;
+           mf:entries ( \(entries) ) .
+        \(types)
+        """
+
+        let suite = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle, baseURL: URL(string: "https://example.org/manifests/m.ttl"))
+
+        #expect(classes.count == 20)
+        #expect(suite.cases.map { type(of: $0.test as any RDFCore.Entity).metadata.name } == classes.map(\.1))
+    }
+
+    @Test("A render case names its query by the class of its sk:queryTemplate node")
+    func renderCaseDecodesItsTemplate() throws {
+        let turtle = """
+        @prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+        @prefix sk: <https://codex.local/sparqlkit/conformance#> .
+
+        <https://example.org/manifests/render> a mf:Manifest ;
+           mf:entries ( <#render> ) .
+        <#render> a sk:RenderQueryTest ;
+          sk:queryTemplate [ a sk:BasicSelectQuery ] ;
+          sk:expectContains "SELECT ?s ?o" .
+        """
+
+        let suite = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle, baseURL: URL(string: "https://example.org/manifests/m.ttl"))
+
+        #expect(suite.cases.first?.test is SPARQLConformance.RenderQueryTestIndividual)
+        #expect(suite.cases.first?.queryTemplate is SPARQLConformance.BasicSelectQueryIndividual)
+        #expect(SPARQLConformanceRunner().run(suite: suite, loadFixture: fixture).allPassed)
+    }
+
+    @Test(
+        "A query template named by a string or an unknown class is rejected",
+        arguments: [#""basicSelect""#, "[ a sk:UnknownQuery ]", "sk:BasicSelectQuery"]
+    )
+    func templateByStringIsRejected(template: String) {
+        let turtle = """
+        @prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+        @prefix sk: <https://codex.local/sparqlkit/conformance#> .
+
+        <https://example.org/manifests/render> a mf:Manifest ;
+           mf:entries ( <#render> ) .
+        <#render> a sk:RenderQueryTest ;
+          sk:queryTemplate \(template) .
+        """
+
+        #expect(throws: SPARQLW3CManifestError.self) {
+            _ = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle, baseURL: URL(string: "https://example.org/manifests/m.ttl"))
+        }
+    }
+
+    @Test("A render case without a template fails when it runs")
+    func renderCaseWithoutTemplateFails() {
+        let suite = SPARQLConformanceSuite(name: "render", cases: [
+            SPARQLConformanceCase(id: "no-template", test: SPARQLConformance.RenderQueryTestIndividual())
+        ])
+        let report = SPARQLConformanceRunner().run(suite: suite, loadFixture: fixture)
+
+        #expect(report.failedCount == 1)
+        #expect(report.results.first?.message == String(describing: SPARQLConformanceError.missingQueryTemplate("no-template")))
     }
 }

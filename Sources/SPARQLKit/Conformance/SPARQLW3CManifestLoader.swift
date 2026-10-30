@@ -8,7 +8,7 @@ public enum SPARQLW3CManifestError: Error, Equatable, Sendable {
     case missingManifestNode
     case missingEntries
     case malformedEntry(String)
-    case unsupportedOperation(String)
+    case unsupportedTest(String)
     case missingIncludeResolver
 }
 
@@ -16,8 +16,10 @@ public enum SPARQLW3CManifestError: Error, Equatable, Sendable {
 ///
 /// A manifest is Turtle, read by RDFFormats' ``TurtleDecoder``. The terms it
 /// is written in are the generated terms of ``TestManifest``, ``QueryTest``,
-/// ``UpdateTest`` and ``SPARQLConformance``; each test's type IRI becomes the
-/// operation it names as the manifest is read.
+/// ``UpdateTest`` and ``SPARQLConformance``. As the manifest is read, each
+/// entry's type IRI becomes the generated individual of the test class it
+/// names, a ``SPARQLConformanceTest``, and each `sk:queryTemplate` node's type
+/// becomes the ``SPARQLConformanceQueryTemplate`` it names.
 public struct SPARQLW3CManifestLoader {
     public init() {}
 
@@ -85,7 +87,7 @@ extension SPARQLConformanceCase {
     /// The case an `mf:entries` item of a manifest describes.
     init(manifestEntry node: SubjectTerm, in graph: ManifestGraph) throws {
         let id = node.manifestIdentifier
-        let operation = try SPARQLConformanceOperation(manifestEntry: node, in: graph)
+        let test = try graph.test(of: node)
         let action = graph.object(node, TestManifest.action.metadata.id)?.subject
 
         func literals(_ predicate: IRI) -> [String] {
@@ -113,15 +115,10 @@ extension SPARQLConformanceCase {
             }
         }
 
-        let template = graph.literal(node, SPARQLConformance.queryTemplate.metadata.id)
-            .flatMap(SPARQLConformanceQueryTemplate.init(rawValue:))
-        if operation == .renderQuery, template == nil {
-            throw SPARQLW3CManifestError.malformedEntry("\(id): render query case missing sk:queryTemplate")
-        }
-
+        let template = try graph.queryTemplate(of: node)
         self.init(
             id: id,
-            operation: operation,
+            test: test,
             fixtureFile: graph.fixtureFile(of: node, action: action),
             queryTemplate: template,
             queryText: graph.literal(node, SPARQLConformance.query.metadata.id),
@@ -142,47 +139,6 @@ extension SPARQLConformanceCase {
             expectBodyContains: literals(SPARQLConformance.expectBodyContains.metadata.id),
             expectHeaderContains: literals(SPARQLConformance.expectHeaderContains.metadata.id)
         )
-    }
-}
-
-extension SPARQLConformanceOperation {
-    /// The operation a manifest entry's `rdf:type` names.
-    init(manifestEntry node: SubjectTerm, in graph: ManifestGraph) throws {
-        for type in graph.iris(node, RDF.type.metadata.id) {
-            if let operation = SPARQLConformanceOperation(manifestType: type, of: node, in: graph) {
-                self = operation
-                return
-            }
-        }
-        throw SPARQLW3CManifestError.unsupportedOperation(node.manifestIdentifier)
-    }
-
-    /// The operation a test type names, if SPARQLKit runs tests of that type.
-    private init?(manifestType type: IRI, of node: SubjectTerm, in graph: ManifestGraph) {
-        let operation: SPARQLConformanceOperation? = switch type {
-        case SPARQLConformance.DecodeJSONBindingsTestIndividual.metadata.id: .decodeJSONBindings
-        case SPARQLConformance.DecodeJSONBooleanTestIndividual.metadata.id: .decodeJSONBoolean
-        case SPARQLConformance.DecodeXMLBindingsTestIndividual.metadata.id: .decodeXMLBindings
-        case SPARQLConformance.DecodeXMLBooleanTestIndividual.metadata.id: .decodeXMLBoolean
-        case SPARQLConformance.DecodeCSVBindingsTestIndividual.metadata.id: .decodeCSVBindings
-        case SPARQLConformance.DecodeTSVBindingsTestIndividual.metadata.id: .decodeTSVBindings
-        case SPARQLConformance.RenderQueryTestIndividual.metadata.id: .renderQuery
-        case SPARQLConformance.ProtocolGetQueryRequestTestIndividual.metadata.id: .buildGETQueryRequest
-        case SPARQLConformance.ProtocolPostQueryRequestTestIndividual.metadata.id: .buildPOSTQueryRequest
-        case SPARQLConformance.ProtocolPostUpdateRequestTestIndividual.metadata.id: .buildPOSTUpdateRequest
-        case SPARQLConformance.GraphStoreGetDefaultRequestTestIndividual.metadata.id: .buildGETDefaultGraphStoreRequest
-        case SPARQLConformance.GraphStoreHeadNamedRequestTestIndividual.metadata.id: .buildHEADNamedGraphStoreRequest
-        case SPARQLConformance.GraphStorePostServiceRequestTestIndividual.metadata.id: .buildPOSTServiceGraphStoreRequest
-        case SPARQLConformance.GraphStorePutNamedRequestTestIndividual.metadata.id: .buildPUTNamedGraphStoreRequest
-        case SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual.metadata.id: .buildDELETENamedGraphStoreRequest
-        case TestManifest.QueryEvaluationTestIndividual.metadata.id:
-            graph.expectsGraph(node) ? .buildPOSTGraphQueryRequest : .buildPOSTQueryRequest
-        case TestManifest.UpdateEvaluationTestIndividual.metadata.id: .buildPOSTUpdateRequest
-        case TestManifest.CSVResultFormatTestIndividual.metadata.id: .decodeCSVBindings
-        default: nil
-        }
-        guard let operation else { return nil }
-        self = operation
     }
 }
 
@@ -213,15 +169,45 @@ struct ManifestGraph {
         object(subject, predicate)?.lexicalForm
     }
 
-    /// Whether a query evaluation test expects a graph: its `mf:result` is
-    /// an RDF document (Turtle, N-Triples, RDF/XML, JSON-LD) rather than a
-    /// results document (`.srj`, `.srx`, `.csv`, `.tsv`). The W3C SPARQL test
-    /// suites name each result document with the extension of its format;
-    /// the manifest, not the query text, says what the query returns.
-    func expectsGraph(_ node: SubjectTerm) -> Bool {
-        guard let result = iris(node, TestManifest.result.metadata.id).first,
-              let url = URL(string: result.rawValue) else { return false }
-        return ["ttl", "nt", "rdf", "jsonld"].contains(url.pathExtension.lowercased())
+    /// The test a manifest entry is: the generated individual of the first
+    /// test class its `rdf:type` names that SPARQLKit runs.
+    func test(of node: SubjectTerm) throws -> any SPARQLConformanceTest {
+        let tests: [any SPARQLConformanceTest] = [
+            SPARQLConformance.DecodeJSONBindingsTestIndividual(), SPARQLConformance.DecodeJSONBooleanTestIndividual(),
+            SPARQLConformance.DecodeXMLBindingsTestIndividual(), SPARQLConformance.DecodeXMLBooleanTestIndividual(),
+            SPARQLConformance.DecodeCSVBindingsTestIndividual(), SPARQLConformance.DecodeTSVBindingsTestIndividual(),
+            SPARQLConformance.RenderQueryTestIndividual(),
+            SPARQLConformance.ProtocolGetQueryRequestTestIndividual(), SPARQLConformance.ProtocolPostQueryRequestTestIndividual(),
+            SPARQLConformance.ProtocolGetGraphQueryRequestTestIndividual(),
+            SPARQLConformance.ProtocolPostGraphQueryRequestTestIndividual(),
+            SPARQLConformance.ProtocolPostUpdateRequestTestIndividual(),
+            SPARQLConformance.GraphStoreGetDefaultRequestTestIndividual(),
+            SPARQLConformance.GraphStoreHeadNamedRequestTestIndividual(),
+            SPARQLConformance.GraphStorePostServiceRequestTestIndividual(),
+            SPARQLConformance.GraphStorePutNamedRequestTestIndividual(),
+            SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual(),
+            TestManifest.QueryEvaluationTestIndividual(), TestManifest.UpdateEvaluationTestIndividual(),
+            TestManifest.CSVResultFormatTestIndividual()
+        ]
+        for type in iris(node, RDF.type.metadata.id) {
+            if let test = tests.individual(named: type) { return test }
+        }
+        throw SPARQLW3CManifestError.unsupportedTest(node.manifestIdentifier)
+    }
+
+    /// The typed query a render case names: the node its `sk:queryTemplate`
+    /// points at is an individual of a template class.
+    func queryTemplate(of node: SubjectTerm) throws -> (any SPARQLConformanceQueryTemplate)? {
+        guard let object = object(node, SPARQLConformance.queryTemplate.metadata.id) else { return nil }
+        let templates: [any SPARQLConformanceQueryTemplate] = [SPARQLConformance.BasicSelectQueryIndividual()]
+        if let templateNode = object.subject {
+            for type in iris(templateNode, RDF.type.metadata.id) {
+                if let template = templates.individual(named: type) { return template }
+            }
+        }
+        throw SPARQLW3CManifestError.malformedEntry(
+            "\(node.manifestIdentifier): sk:queryTemplate names no query template SPARQLKit builds."
+        )
     }
 
     /// The document a case reads: its `mf:result`, or the query or update its

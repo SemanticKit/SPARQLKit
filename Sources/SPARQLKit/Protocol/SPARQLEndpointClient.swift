@@ -207,20 +207,21 @@ public struct SPARQLEndpointClient: Sendable {
         method: SPARQLHTTPMethod,
         options: SPARQLQueryRequestOptions = .init()
     ) throws -> URLRequest {
-        let dataset = options.defaultGraphs.map { ("default-graph-uri", $0.rawValue) }
+        let parameters: [(name: String, value: String?)] = [("query", query)]
+            + options.defaultGraphs.map { ("default-graph-uri", $0.rawValue) }
             + options.namedGraphs.map { ("named-graph-uri", $0.rawValue) }
         var request: URLRequest
         switch method {
         case .get:
             var components = URLComponents(url: configuration.queryURL, resolvingAgainstBaseURL: false)
-            components?.queryItems = ([("query", query)] + dataset).map { URLQueryItem(name: $0.0, value: $0.1) }
+            components?.percentEncodedQuery = FormURLEncoder().encode(parameters)
             guard let url = components?.url else {
                 throw SPARQLError.invalidRequest("The query does not fit in a request URL.")
             }
             request = URLRequest(url: url)
         case .post:
             request = URLRequest(url: configuration.queryURL)
-            request.httpBody = transport.formURLEncoded([("query", query)] + dataset)
+            request.httpBody = Data(FormURLEncoder().encode(parameters).utf8)
             request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
         }
         request.httpMethod = method.rawValue
@@ -239,11 +240,10 @@ public struct SPARQLEndpointClient: Sendable {
         var request = URLRequest(url: configuration.updateURL ?? configuration.queryURL)
         request.httpMethod = SPARQLHTTPMethod.post.rawValue
         request.timeoutInterval = configuration.requestTimeout
-        request.httpBody = transport.formURLEncoded(
-            [("update", update)]
-                + options.usingGraphs.map { ("using-graph-uri", $0.rawValue) }
-                + options.usingNamedGraphs.map { ("using-named-graph-uri", $0.rawValue) }
-        )
+        let parameters: [(name: String, value: String?)] = [("update", update)]
+            + options.usingGraphs.map { ("using-graph-uri", $0.rawValue) }
+            + options.usingNamedGraphs.map { ("using-named-graph-uri", $0.rawValue) }
+        request.httpBody = Data(FormURLEncoder().encode(parameters).utf8)
         request.setValue("application/x-www-form-urlencoded; charset=utf-8", forHTTPHeaderField: "Content-Type")
         try transport.applyHeaders(to: &request)
         return request
