@@ -1,13 +1,22 @@
 {
-  "originHash" : "ea070b43a5ab961b64017c9f059ae5bc539b13bcb5c73c20c22fb0aafb7ba475",
+  "originHash" : "317140ce4d55faeeda93fd83c31f72889d61299a87020ba1ced5c792589b0db0",
   "pins" : [
     {
-      "identity" : "swift-syntax",
+      "identity" : "irikit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "location" : "https://github.com/SemanticKit/IRIKit.git",
       "state" : {
-        "revision" : "0687f71944021d616d34d922343dcef086855920",
-        "version" : "600.0.1"
+        "branch" : "main",
+        "revision" : "dc33434d8e212eb79e5952bf1318b6879be4d74c"
+      }
+    },
+    {
+      "identity" : "rdfkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SemanticKit/RDFKit.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "30c59ed7cd4c1ca30c088c9c6f63a80c39c49eca"
       }
     }
   ],
