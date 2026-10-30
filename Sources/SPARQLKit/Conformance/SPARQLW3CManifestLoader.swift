@@ -203,7 +203,7 @@ extension RDFCore.Graph {
     func list(_ head: ObjectTerm) throws -> [ObjectTerm] {
         var members: [ObjectTerm] = []
         var node = head
-        while node.subject.flatMap(\.iri) != RDF.nil.iri {
+        while node.subject.flatMap(\.iri) != IRI(of: RDF.nil) {
             guard let cell = node.subject,
                   let first = object(RDF.first, of: cell),
                   let rest = object(RDF.rest, of: cell) else {

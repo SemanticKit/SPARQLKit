@@ -8,23 +8,35 @@ import RDFFormats
 import ServiceDescription
 
 /// Decodes a Turtle service description into the translated `sd:Service`
-/// it describes (SPARQL 1.2 Service Description §3).
+/// it describes (SPARQL 1.2 Service Description §3), together with what the
+/// document says that the service's vocabulary cannot hold as translated
+/// individuals.
 ///
 /// The document is read by RDFFormats' ``TurtleDecoder``. The service is an
 /// instance of the generated `ServiceDescription.ServiceIndividual`, and each
-/// IRI that names a language, feature, format or entailment regime becomes
-/// the translated individual it denotes as it is read, so the decoded
-/// service's `supportedLanguage`, `feature`, `resultFormat` and
-/// `defaultEntailmentRegime` hold those individuals themselves. An IRI the
-/// vocabularies do not declare, or one that denotes an individual outside
-/// the property's range, names nothing SPARQLKit can act on, so it is left
-/// out.
+/// IRI that names a language, feature or format becomes the translated
+/// individual it denotes as it is read, so the decoded service's
+/// `supportedLanguage`, `feature` and `resultFormat` hold those individuals
+/// themselves. An IRI the vocabularies do not declare, or one that denotes an
+/// individual outside the property's range, names nothing SPARQLKit can act
+/// on, so it is left out.
+///
+/// Two things stay with the decoded document rather than the service. The
+/// endpoints are IRIs the HTTP layer dereferences (identity an external
+/// system reads), so the document keeps them as URLs. The entailment regimes
+/// are the translated `ent:Entailment` individuals of the published
+/// entailment documents, which no published RDF states are
+/// `sd:EntailmentRegime`s, so they cannot be values of the service's
+/// `sd:defaultEntailmentRegime`; the document keeps them as the
+/// `ent:Entailment` individuals they are.
 public struct SPARQLServiceDescriptionDecoder: Sendable {
     /// The individuals the vocabularies declare: the languages and features
-    /// of sparql-service-description.ttl, the formats and the entailment
-    /// regimes.
-    static let vocabulary: [any RDFCore.Description] =
-        ServiceDescription.ontology + Formats.ontology + EntailmentRegimes.ontology
+    /// of sparql-service-description.ttl and the formats.
+    static let vocabulary: [any RDFCore.Description] = ServiceDescription.ontology + Formats.ontology
+
+    /// The entailment regimes the published entailment documents describe.
+    static let regimes: [any EntailmentRegimes.Entailment] =
+        EntailmentRegimes.ontology.compactMap { $0 as? any EntailmentRegimes.Entailment }
 
     /// The properties whose domain is `sd:Service`: a node the document gives
     /// one of them is a service (RDF 1.2 Semantics, rdfs2).
@@ -43,7 +55,7 @@ public struct SPARQLServiceDescriptionDecoder: Sendable {
     ///
     /// - Throws: ``SPARQLError/decodingFailure(_:)`` when the document is not
     ///   Turtle, or describes no service or more than one.
-    public func decode(_ turtle: String, base: IRI? = nil) throws -> any ServiceDescription.Service {
+    public func decode(_ turtle: String, base: IRI? = nil) throws -> SPARQLServiceDescription {
         let graph = try TurtleDecoder(base: base).decode(turtle)
         let services = graph.members(of: ServiceDescription.ServiceIndividual.self)
             .union(Self.serviceProperties.flatMap(graph.subjects))
@@ -57,39 +69,38 @@ public struct SPARQLServiceDescriptionDecoder: Sendable {
             let candidates = Self.vocabulary.compactMap { $0 as? Individual }
             return graph.iris(property, of: subject).compactMap(candidates.individual(denotedBy:))
         }
-        func resources(_ property: any RDFCore.Resource, of subject: SubjectTerm) -> [RDFCore.Value] {
-            graph.iris(property, of: subject).map { .individual(RDF.ResourceIndividual(iri: $0)) }
+        func regimes(_ property: any RDFCore.Resource, of subject: SubjectTerm) -> [any EntailmentRegimes.Entailment] {
+            graph.iris(property, of: subject).compactMap(Self.regimes.individual(denotedBy:))
         }
+        var entailmentRegimes = regimes(ServiceDescription.defaultEntailmentRegime, of: node)
         func namedGraphs(of collection: SubjectTerm) -> [any ServiceDescription.NamedGraph] {
             graph.objects(ServiceDescription.namedGraph, of: collection).compactMap(\.subject).map { node in
-                let namedGraph = ServiceDescription.NamedGraphIndividual(iri: node.iri)
-                namedGraph.name = resources(ServiceDescription.name, of: node)
-                namedGraph.entailmentRegime = declared(ServiceDescription.entailmentRegime, of: node, as: (any ServiceDescription.EntailmentRegime).self)
-                return namedGraph
+                entailmentRegimes += regimes(ServiceDescription.entailmentRegime, of: node)
+                return ServiceDescription.NamedGraphIndividual()
             }
         }
 
-        let service = ServiceDescription.ServiceIndividual(iri: node.iri)
-        service.endpoint = resources(ServiceDescription.endpoint, of: node)
+        let service = ServiceDescription.ServiceIndividual()
         service.supportedLanguage = declared(ServiceDescription.supportedLanguage, of: node, as: (any ServiceDescription.Language).self)
         service.feature = declared(ServiceDescription.feature, of: node, as: (any ServiceDescription.Feature).self)
         service.languageExtension = declared(ServiceDescription.languageExtension, of: node, as: (any ServiceDescription.Feature).self)
         service.propertyFeature = declared(ServiceDescription.propertyFeature, of: node, as: (any ServiceDescription.Feature).self)
         service.resultFormat = declared(ServiceDescription.resultFormat, of: node, as: (any Formats.Format).self)
         service.inputFormat = declared(ServiceDescription.inputFormat, of: node, as: (any Formats.Format).self)
-        service.defaultEntailmentRegime = declared(
-            ServiceDescription.defaultEntailmentRegime, of: node, as: (any ServiceDescription.EntailmentRegime).self
-        )
         service.defaultDataset = graph.objects(ServiceDescription.defaultDataset, of: node).compactMap(\.subject).map { node in
-            let dataset = ServiceDescription.DatasetIndividual(iri: node.iri)
+            let dataset = ServiceDescription.DatasetIndividual()
             dataset.namedGraph = namedGraphs(of: node)
             return dataset
         }
         service.availableGraphs = graph.objects(ServiceDescription.availableGraphs, of: node).compactMap(\.subject).map { node in
-            let collection = ServiceDescription.GraphCollectionIndividual(iri: node.iri)
+            let collection = ServiceDescription.GraphCollectionIndividual()
             collection.namedGraph = namedGraphs(of: node)
             return collection
         }
-        return service
+        return SPARQLServiceDescription(
+            service: service,
+            endpointURLs: graph.iris(ServiceDescription.endpoint, of: node).compactMap { URL(string: $0.rawValue) },
+            entailmentRegimes: entailmentRegimes
+        )
     }
 }

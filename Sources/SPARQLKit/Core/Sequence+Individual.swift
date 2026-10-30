@@ -1,5 +1,6 @@
 import IRIKit
 import RDFCore
+import RDFFormats
 
 extension Sequence {
     /// The individual in this sequence that an IRI denotes.
@@ -12,7 +13,7 @@ extension Sequence {
     ///
     ///     let format = Formats.ontology.compactMap { $0 as? any Formats.Format }.individual(denotedBy: iri)
     func individual(denotedBy iri: IRI) -> Element? {
-        first { ($0 as? any RDFCore.Resource)?.iri == iri }
+        first { ($0 as? any RDFCore.Resource).flatMap(IRI.init(of:)) == iri }
     }
 
     /// The member of this sequence whose Swift class is the RDF class an IRI
@@ -20,7 +21,7 @@ extension Sequence {
     /// class it names.
     func member(ofClassDenotedBy iri: IRI) -> Element? {
         first { candidate in
-            (candidate as? any RDFCore.ResourceClass).map { type(of: $0).iri == iri } ?? false
+            (candidate as? any RDFCore.ResourceClass).map { IRI(of: type(of: $0)) == iri } ?? false
         }
     }
 }

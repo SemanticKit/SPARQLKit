@@ -14,7 +14,7 @@ struct SPARQLJSONResultDecoderTests {
         #expect(result.bindings.count == 3)
         let first = try #require(result.bindings.first)
         #expect(first["name"] == (try literal("Alice")))
-        #expect(first["count"] == (try literal("3", datatype: xsdInteger)))
+        #expect(first["count"] == (.literal(try integer("3"))))
     }
 
     @Test("An ASK result decodes to its boolean")
@@ -52,7 +52,7 @@ struct SPARQLJSONResultDecoderTests {
         #expect(first["u"] == iri("http://example.org/resource"))
         #expect(try first["b"] == blank("node1"))
         #expect(first["lang"] == (try literal("hello", language: "en")))
-        #expect(first["typed"] == (try literal("42", datatype: xsdInteger)))
+        #expect(first["typed"] == (.literal(try integer("42"))))
     }
 
     @Test("Triple terms and directional literals decode; xsd:string is a simple literal")

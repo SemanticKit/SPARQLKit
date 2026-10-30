@@ -59,7 +59,7 @@ struct SPARQLEndpointIntegrationTests {
     func graphStoreRoundTrip() async throws {
         let client = SPARQLGraphStoreClient(configuration: SPARQLGraphStoreConfiguration(graphStoreURL: try #require(Environment.graphStoreURL)))
         let graph = Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? "http://example.org/sparqlkit/graphstore"
-        let triple = Graph.Element(subject: .iri("http://example.org/s"), predicate: FOAF.knows.iri!, object: .iri("http://example.org/o"))
+        let triple = Graph.Element(subject: .iri("http://example.org/s"), predicate: IRI(of: FOAF.knows)!, object: .iri("http://example.org/o"))
 
         _ = try await client.putGraph([triple], graph: .named(graph))
         #expect(try await client.getGraph(.named(graph)).contains(triple))
@@ -94,12 +94,12 @@ struct SPARQLEndpointIntegrationTests {
     @Test("Each configured entailment regime answers", .enabled(if: Environment.queryURL != nil && Environment.iris("SPARQL_TEST_ENTAILMENT_REGIMES").count >= 2))
     func entailmentRegimes() async throws {
         let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(queryURL: try #require(Environment.queryURL)))
-        let declared = EntailmentRegimes.ontology.compactMap { $0 as? any ServiceDescription.EntailmentRegime }
+        let declared = EntailmentRegimes.ontology.compactMap { $0 as? any EntailmentRegimes.Entailment }
         let regimes = Environment.iris("SPARQL_TEST_ENTAILMENT_REGIMES").compactMap(declared.individual(denotedBy:))
         try #require(regimes.count >= 2)
-        let description = ServiceDescription.ServiceIndividual()
-        description.resultFormat = [Formats.SPARQL_Results_JSON]
-        description.defaultEntailmentRegime = regimes
+        let service = ServiceDescription.ServiceIndividual()
+        service.resultFormat = [Formats.SPARQL_Results_JSON]
+        let description = SPARQLServiceDescription(service: service, entailmentRegimes: regimes)
         let ask = SPARQLAskQuery(where: [anyTriple()])
 
         var answers: [Data] = []

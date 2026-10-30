@@ -92,7 +92,7 @@ struct SPARQLQueryRenderingTests {
                 ))
             ],
             groupBy: ["s"],
-            having: [.binary(.aggregate(.count, distinct: false, .variable("o")), .greaterThan, .literal(try Literal("1", datatype: xsdInteger)))],
+            having: [.binary(.aggregate(.count, distinct: false, .variable("o")), .greaterThan, .literal(try integer("1")))],
             orderBy: [SPARQLOrderCondition(.variable("s"), ascending: false)],
             limit: 10,
             offset: 20
@@ -165,7 +165,7 @@ struct SPARQLQueryRenderingTests {
     func expressionsRender() throws {
         let flag = SPARQLExpression.unary(
             .logicalNot,
-            .binary(.builtIn(.bound, [.variable("x")]), .or, .unary(.unaryMinus, .literal(try Literal("2", datatype: xsdInteger))))
+            .binary(.builtIn(.bound, [.variable("x")]), .or, .unary(.unaryMinus, .literal(try integer("2"))))
         )
         #expect(flag.render() == #"!((BOUND(?x) || -("2"^^<http://www.w3.org/2001/XMLSchema#integer>)))"#)
 
@@ -185,7 +185,7 @@ struct SPARQLQueryRenderingTests {
     @Test("Literals render with escapes, language tags, base directions and datatypes")
     func literalsRender() throws {
         #expect(Literal("quote=\" slash=\\ newline=\n").render() == #""quote=\" slash=\\ newline=\n""#)
-        #expect((try Literal("42", datatype: xsdInteger)).render() == #""42"^^<http://www.w3.org/2001/XMLSchema#integer>"#)
+        #expect((try integer("42")).render() == #""42"^^<http://www.w3.org/2001/XMLSchema#integer>"#)
         #expect((try Literal("bonjour", languageTag: "fr")).render() == #""bonjour"@fr"#)
         #expect((try Literal("chat", languageTag: "fr", baseDirection: .ltr)).render() == #""chat"@fr--ltr"#)
         #expect(Literal("café é").render() == "\"café é\"")
@@ -204,7 +204,7 @@ struct SPARQLQueryRenderingTests {
 
     @Test("A decoded term becomes the pattern position that matches it")
     func decodedTermBecomesPatternTerm() throws {
-        let term = triple("http://example.org/alice", FOAF.name.iri!, try literal("Alice"))
+        let term = triple("http://example.org/alice", IRI(of: FOAF.name)!, try literal("Alice"))
         #expect(try SPARQLPatternTerm(term).render() == #"<<( <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice" )>>"#)
     }
 
@@ -212,7 +212,7 @@ struct SPARQLQueryRenderingTests {
     func decodedBlankNodeIsRefused() throws {
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("a b.")) }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("b1")) }
-        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: FOAF.name.iri!, object: .iri("http://example.org/o")))
+        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name)!, object: .iri("http://example.org/o")))
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(nested) }
     }
 

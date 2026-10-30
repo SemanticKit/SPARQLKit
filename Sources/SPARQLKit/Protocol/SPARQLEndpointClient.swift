@@ -1,3 +1,4 @@
+import EntailmentRegimes
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -15,12 +16,12 @@ public struct SPARQLQueryRequestOptions: Sendable {
     /// The `named-graph-uri` parameters.
     public let namedGraphs: [IRI]
     /// An entailment regime the endpoint's service description must name.
-    public let requiredEntailmentRegime: (any ServiceDescription.EntailmentRegime)?
+    public let requiredEntailmentRegime: (any EntailmentRegimes.Entailment)?
 
     public init(
         defaultGraphs: [IRI] = [],
         namedGraphs: [IRI] = [],
-        requiredEntailmentRegime: (any ServiceDescription.EntailmentRegime)? = nil
+        requiredEntailmentRegime: (any EntailmentRegimes.Entailment)? = nil
     ) {
         self.defaultGraphs = defaultGraphs
         self.namedGraphs = namedGraphs
@@ -105,9 +106,9 @@ public struct SPARQLEndpointClient: Sendable {
         accept: SPARQLAccept = .jsonResults,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: (any ServiceDescription.Service)? = nil
+        serviceDescription: SPARQLServiceDescription? = nil
     ) async throws -> Data {
-        if let serviceDescription, !serviceDescription.supports(accept) {
+        if let serviceDescription, !serviceDescription.service.supports(accept) {
             throw SPARQLError.invalidRequest("Endpoint service description does not support requested result format.")
         }
         try check(options, against: serviceDescription)
@@ -120,7 +121,7 @@ public struct SPARQLEndpointClient: Sendable {
         _ query: SPARQLSelectQuery,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: (any ServiceDescription.Service)? = nil
+        serviceDescription: SPARQLServiceDescription? = nil
     ) async throws -> SPARQLResultSet {
         let data = try await executeQuery(
             query, accept: .jsonResults, method: method, options: options, serviceDescription: serviceDescription
@@ -133,7 +134,7 @@ public struct SPARQLEndpointClient: Sendable {
         _ query: SPARQLAskQuery,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: (any ServiceDescription.Service)? = nil
+        serviceDescription: SPARQLServiceDescription? = nil
     ) async throws -> Bool {
         let data = try await executeQuery(
             query, accept: .jsonResults, method: method, options: options, serviceDescription: serviceDescription
@@ -151,9 +152,9 @@ public struct SPARQLEndpointClient: Sendable {
         accept: SPARQLGraphAccept = .turtle,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: (any ServiceDescription.Service)? = nil
+        serviceDescription: SPARQLServiceDescription? = nil
     ) async throws -> RDFCore.Graph {
-        if let serviceDescription, !serviceDescription.supports(accept) {
+        if let serviceDescription, !serviceDescription.service.supports(accept) {
             throw SPARQLError.invalidRequest("Endpoint service description does not support requested graph format.")
         }
         try check(options, against: serviceDescription)
@@ -194,7 +195,7 @@ public struct SPARQLEndpointClient: Sendable {
         }
     }
 
-    private func check(_ options: SPARQLQueryRequestOptions, against description: (any ServiceDescription.Service)?) throws {
+    private func check(_ options: SPARQLQueryRequestOptions, against description: SPARQLServiceDescription?) throws {
         if let regime = options.requiredEntailmentRegime, let description, !description.supportsEntailment(regime) {
             throw SPARQLError.invalidRequest("Endpoint service description does not support requested entailment regime.")
         }

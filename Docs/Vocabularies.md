@@ -14,7 +14,7 @@ Swift, and no Swift declaration states an IRI.
 | `FOAF` | RDF, OWL | FOAF, which the format and entailment documents describe their author in |
 | `Formats` | FOAF, RDF, OWL | Unique URIs for File Formats: `Formats.Format` and its 23 formats |
 | `ServiceDescription` | Formats, RDF, OWL | SPARQL 1.2 Service Description: `sd:Service`, `sd:EntailmentRegime`, the languages and features |
-| `EntailmentRegimes` | ServiceDescription, FOAF, RDF, OWL | Unique URIs for Semantic Web Entailment Regimes, each regime an `sd:EntailmentRegime` |
+| `EntailmentRegimes` | ServiceDescription, FOAF, RDF, OWL | Unique URIs for Semantic Web Entailment Regimes: `ent:Entailment` and its seven regimes, `ent:RDF` included |
 | `TestManifest`, `TestQuery`, `TestUpdate` | RDF, OWL | The W3C test manifest, query test and update test vocabularies |
 | `SPARQLConformance` | TestManifest, TestQuery, TestUpdate, RDF, OWL | SPARQLKit's own conformance vocabulary |
 
@@ -31,7 +31,6 @@ otherwise. Retrieved 2026-10-30 with curl.
 | `Sources/ServiceDescription/sparql-service-description.ttl` | <http://www.w3.org/ns/sparql-service-description> with `Accept: text/turtle` | `a4e4ab035c909d4aeb140ab5807a3b49dfa0ecee587dc9109214ecfaff712878` |
 | `Sources/EntailmentRegimes/Entailment.ttl` | <http://www.w3.org/ns/entailment/> with `Accept: text/turtle` | `41c3bebb8c02002d415f5ee533eff06ace387f0cbbd285594a71aafed44ea1ed` |
 | `Sources/EntailmentRegimes/<Regime>.ttl` | `https://www.w3.org/ns/entailment/<Regime>` with `Accept: text/turtle`, for each regime `ent:Entailment rdfs:seeAlso` lists | see below |
-| `Sources/EntailmentRegimes/sparql12-entailment-regimes.ttl` | Written for SPARQLKit: each regime SPARQL 1.2 Entailment Regimes defines (§2, §4 to §8.1) is the object of `sd:defaultEntailmentRegime` or `sd:entailmentRegime` (§1.4), whose range is `sd:EntailmentRegime` | `375b0df057de3b7f59c0a88ed5d99e3baaecf148af44bf472456e45095866227` |
 | `Sources/TestManifest/test-manifest.ttl` | [`ns/test-manifest.ttl`](https://github.com/w3c/rdf-tests/blob/d01b141c65ddf8e5b615256f264111118bdb2134/ns/test-manifest.ttl) in github.com/w3c/rdf-tests at commit d01b141 | `15a589845733591309c5b88b4db62f03e86d444da448b6c0d6f31ba6953dbf94` |
 | `Sources/TestQuery/test-query.ttl` | [`ns/test-query.ttl`](https://github.com/w3c/rdf-tests/blob/d01b141c65ddf8e5b615256f264111118bdb2134/ns/test-query.ttl) at the same commit | `dea66e1291db1651e27c4bf788a540d3b72c585e1f1422fdb957f7aa53354baa` |
 | `Sources/TestUpdate/test-update.ttl` | [`ns/test-update.ttl`](https://github.com/w3c/rdf-tests/blob/d01b141c65ddf8e5b615256f264111118bdb2134/ns/test-update.ttl) at the same commit | `d561938401910276ef4ff1da224b56decbf1c63ca416ee939ed84b8aaa027c1f` |
@@ -42,23 +41,35 @@ Syntax document; `OWL_Manchester.ttl` is
 <https://www.w3.org/ns/formats/data/OWL_Manchester.ttl>, which describes
 `formats:OWL_Manchester`.
 
-`SPARQL_Results_XML.ttl` as served (sha256
-`6d2cd3b1d24e5e6d957e8adfed33a6846431c0cbff948f3855723a3abc7d2ab3`) is not
-Turtle: line 22 writes `dc:title` and the document declares no `dc:` prefix
-(RDF 1.2 Turtle §6.3: a prefixed name's prefix must be declared). The stored
-document writes `dcterms:title` there, the term the RDF/XML representation of
-the same document gives that triple; no other byte differs.
+`SPARQL_Results_XML.ttl` as served has sha256
+`6d2cd3b1d24e5e6d957e8adfed33a6846431c0cbff948f3855723a3abc7d2ab3` and is
+not Turtle: line 22 writes `dc:title` and the document declares no `dc:`
+prefix (RDF 1.2 Turtle §6.3: a prefixed name's prefix must be declared). The
+stored document is the served document with one line added before its first
+line, and no other byte changed:
+
+    @prefix dc: <http://purl.org/dc/elements/1.1/> .
+
+The repair keeps the published `dc:title` term; the stored file's sha256 is
+in the table below.
 
 `OWL-RDF-Based.ttl` describes `ent:OWL-RDF-based`, with a lower-case `b`,
 while SPARQL 1.2 Entailment Regimes §6 and `Entailment.ttl` name the regime
-`ent:OWL-RDF-Based`. Both are translated as the documents give them; the
-regime is `EntailmentRegimes.OWL-RDF-Based`.
+`ent:OWL-RDF-Based`. Both are translated as the documents give them:
+`Entailment.ttl` only lists `ent:OWL-RDF-Based` as an `rdfs:seeAlso` and
+never types it, so the `ent:Entailment` individual is
+`EntailmentRegimes.OWL-RDF-based`, the one `OWL-RDF-Based.ttl` describes.
 
-`RDF.ttl` (sha256
-`bf045cb94cbe9abff486bf6194a2029d658676cd6eed07c5e45b4b10f9db2ba6`) is stored
-but excluded from its target, and `ent:RDF` is not yet stated an
-`sd:EntailmentRegime`: RDFTranslator would name the individual `RDF`, a
-module-level name that hides the RDF module the generated Swift refers to.
+The published entailment documents (`Entailment.ttl` and the one each
+regime's IRI dereferences to, in Turtle, RDF/XML or JSON-LD) state that each
+regime is an `ent:Entailment` and nothing else, and
+`sparql-service-description.ttl` does not mention `ent:`. So the regimes are
+translated as `ent:Entailment` individuals only, not as
+`sd:EntailmentRegime`s: a service description's `sd:defaultEntailmentRegime`
+and `sd:entailmentRegime` values decode into these individuals and are kept on
+the decoded `SPARQLServiceDescription`, not on the service's
+`sd:EntailmentRegime`-typed properties. No SPARQLKit document states the
+missing membership.
 
 | Format document | sha256 |
 |---|---|
@@ -81,7 +92,7 @@ module-level name that hides the RDF module the generated Swift refers to.
 | `SPARQL_Results_CSV.ttl` | `7a05b3a3dcce9a8e1f55b5a3bd9f15471d933a4031c9bdb8eac3c2840d570a0f` |
 | `SPARQL_Results_JSON.ttl` | `213f8082db96c03f84a8b53dbc7a804562711d3244982f7bcdf7c9fb25fa5f27` |
 | `SPARQL_Results_TSV.ttl` | `4fc406c47438741a50c8e4d50a785b1cffdcbe5e4ea19115c4d2759012c54683` |
-| `SPARQL_Results_XML.ttl` | `163338b8f3d0780369c676c94e1b204fc3443bcdbb426eb789d4614011deeb4f` |
+| `SPARQL_Results_XML.ttl` | `47e517eb122916912faf26425e2d72779bd63bca449fed05fa4888e331ad7d1f` (served: `6d2cd3b1d24e5e6d957e8adfed33a6846431c0cbff948f3855723a3abc7d2ab3`) |
 | `TriG.ttl` | `32b26f60bad366de27955b4fd20f345f3b6f98cc9425b1ccc282208d2dbcbbde` |
 | `Turtle.ttl` | `e383e38f7393bff007f9ebdabe0029c58b8ecc08850bd5fba26a0d23475e67b7` |
 | `microdata.ttl` | `6569d82ec5b2036e4327859909b665731f26efea3e7eaa2c548e490f4d925737` |

@@ -59,7 +59,7 @@ struct SPARQLEndpointClientTests {
         let session = MockSession(body: #"{"head":{"vars":["o"]},"results":{"bindings":[]}}"#)
         let query = SPARQLSelectQuery(["o"], where: [
             .triple(SPARQLTriplePattern(.variable("s"), .path(.oneOrMore(.property(FOAF.knows.sparql))), .variable("o"))),
-            .bind(.binary(.variable("n"), .add, .literal(try Literal("1", datatype: xsdInteger))), as: "m")
+            .bind(.binary(.variable("n"), .add, .literal(try integer("1"))), as: "m")
         ])
         _ = try await client(session).executeSelect(query, method: .get, options: SPARQLQueryRequestOptions(
             defaultGraphs: ["https://example.org/graphs/a+b"]

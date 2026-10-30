@@ -1,3 +1,4 @@
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix dist: <http://www.w3.org/2007/08/pyRdfa/distiller#> .
 @prefix foaf: <http://xmlns.com/foaf/0.1/> .
@@ -19,7 +20,7 @@ formats:SPARQL_Results_XML a formats:Format ;
      formats:media_type "application/sparql-results+xml" ;
      formats:preferred_suffix ".srx" . 
 
-<http://www.w3.org/ns/formats/data/SPARQL_Results_XML.html> dcterms:title "Information Resource for the SPARQL Results File Format in XML" ;
+<http://www.w3.org/ns/formats/data/SPARQL_Results_XML.html> dc:title "Information Resource for the SPARQL Results File Format in XML" ;
      xhv:stylesheet <http://www.w3.org/StyleSheets/TR/base> . 
 
 <http://www.ivan-herman.net/foaf#me> a foaf:Person ;

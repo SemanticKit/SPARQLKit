@@ -15,23 +15,27 @@ func blank(_ label: String) throws -> ObjectTerm {
 /// A literal term.
 func literal(
     _ lexicalForm: String,
-    datatype: IRI? = nil,
     language: String? = nil,
     direction: BaseDirection? = nil
 ) throws -> ObjectTerm {
     if let language {
         return .literal(try Literal(lexicalForm, languageTag: language, baseDirection: direction))
     }
-    if let datatype {
-        return .literal(try Literal(lexicalForm, datatype: datatype))
-    }
     return .literal(Literal(lexicalForm))
+}
+
+/// The `xsd:integer` literal a Turtle document writes as the bare integer
+/// `lexicalForm` (RDF 1.2 Turtle §2.5.2), decoded by RDFFormats'
+/// ``TurtleDecoder``: the datatype comes from the decoder, not from an IRI
+/// typed here.
+func integer(_ lexicalForm: String) throws -> Literal {
+    for triple in try TurtleDecoder().decode("[] a \(lexicalForm) .") {
+        if case .literal(let literal) = triple.object { return literal }
+    }
+    throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "\(lexicalForm) is no Turtle integer."))
 }
 
 /// A triple term.
 func triple(_ subject: IRI, _ predicate: IRI, _ object: ObjectTerm) -> ObjectTerm {
     .tripleTerm(Graph.Element(subject: .iri(subject), predicate: predicate, object: object))
 }
-
-/// The datatype IRI `xsd:integer`, as decoded literals carry it.
-let xsdInteger: IRI = "http://www.w3.org/2001/XMLSchema#integer"

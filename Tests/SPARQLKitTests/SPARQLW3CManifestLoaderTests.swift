@@ -1,6 +1,7 @@
 import Foundation
 import IRIKit
 import RDFCore
+import RDFFormats
 import SPARQLConformance
 import Testing
 import TestManifest
@@ -417,9 +418,9 @@ struct SPARQLW3CManifestLoaderTests {
         // runs the evaluation tests; its syntax tests need a SPARQL parser.
         let classes: [any RDFCore.ResourceClass.Type] = SPARQLConformance.ontology
             .compactMap { ($0 as? RDFCore.ClassDescription)?.class }
-            .filter { $0.iri?.rawValue.hasSuffix("Test") ?? false }
+            .filter { $0.classKey?.name.hasSuffix("Test") ?? false }
             + [TestManifest.QueryEvaluationTestIndividual.self, TestManifest.UpdateEvaluationTestIndividual.self]
-        let iris = classes.compactMap { $0.iri }
+        let iris = classes.compactMap { IRI(of: $0) }
         let entries = iris.indices.map { "<#entry\($0)>" }.joined(separator: " ")
         let types = iris.enumerated().map { "<#entry\($0.offset)> a <\($0.element.rawValue)> ." }.joined(separator: "\n")
         let turtle = """
@@ -433,11 +434,10 @@ struct SPARQLW3CManifestLoaderTests {
         let suite = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle, baseURL: URL(string: "https://example.org/manifests/m.ttl"))
 
         #expect(classes.count == 20)
-        let decoded: [IRI?] = suite.cases.map { testCase in
-            let test: any SPARQLConformanceTest = testCase.test
-            return type(of: test).iri
-        }
-        #expect(decoded == iris)
+        // Each case runs as an instance of the class its entry is typed with:
+        // the Swift class itself, compared by identity.
+        let decoded = suite.cases.map { testCase in ObjectIdentifier(type(of: testCase.test)) }
+        #expect(decoded == classes.map(ObjectIdentifier.init))
     }
 
     @Test("A render case names its query by the class of its sk:queryTemplate node")

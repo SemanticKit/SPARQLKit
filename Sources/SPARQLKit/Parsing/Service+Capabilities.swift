@@ -10,15 +10,6 @@ import ServiceDescription
 /// The languages, features, formats and entailment regimes are the
 /// translated individuals of the vocabularies, compared with `===`.
 extension ServiceDescription.Service {
-    /// The URLs of the service's endpoints (`sd:endpoint`), where a client
-    /// sends its requests: the IRIs the HTTP layer dereferences.
-    public var endpointURLs: [URL] {
-        endpoint.compactMap { value in
-            guard case .individual(let endpoint) = value, let iri = endpoint.iri else { return nil }
-            return URL(string: iri.rawValue)
-        }
-    }
-
     /// Whether the service returns query results in this media type. A
     /// description that names no result format restricts none.
     public func supports(_ accept: SPARQLAccept) -> Bool {
@@ -29,22 +20,6 @@ extension ServiceDescription.Service {
     /// that names no result format restricts none.
     public func supports(_ accept: SPARQLGraphAccept) -> Bool {
         resultFormat.isEmpty || resultFormat.contains { $0 === accept.format }
-    }
-
-    /// The entailment regimes the service uses for basic graph pattern
-    /// matching: its `sd:defaultEntailmentRegime`, and the
-    /// `sd:entailmentRegime` of each named graph of its default dataset and
-    /// of the graphs it makes available.
-    public var entailmentRegimes: [any ServiceDescription.EntailmentRegime] {
-        let collections: [any ServiceDescription.GraphCollection] = defaultDataset + availableGraphs
-        return defaultEntailmentRegime + collections.flatMap(\.namedGraph).flatMap(\.entailmentRegime)
-    }
-
-    /// Whether the service uses this entailment regime. A description that
-    /// names no regime restricts none.
-    public func supportsEntailment(_ regime: any ServiceDescription.EntailmentRegime) -> Bool {
-        let regimes = entailmentRegimes
-        return regimes.isEmpty || regimes.contains { $0 === regime }
     }
 
     /// Whether the service implements this language (`sd:supportedLanguage`).

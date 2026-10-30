@@ -1,5 +1,6 @@
 import IRIKit
 import RDFCore
+import RDFFormats
 
 /// A translated term in a position of a query or update.
 ///
@@ -23,7 +24,7 @@ public struct SPARQLTerm: Hashable, Sendable {
     ///   resource only by its IRI; a blank node written into a query is a
     ///   fresh variable (SPARQL 1.2 Query Language §4.1.4), not the resource.
     public init(_ individual: any RDFCore.Resource) {
-        precondition(individual.iri != nil, "A blank node has no IRI a query can name it by.")
+        precondition(IRI(of: individual) != nil, "A blank node has no IRI a query can name it by.")
         denotation = .individual(individual)
     }
 
@@ -32,15 +33,15 @@ public struct SPARQLTerm: Hashable, Sendable {
     ///
     /// - Precondition: The class is denoted by an IRI.
     public init(_ class: any RDFCore.ResourceClass.Type) {
-        precondition(`class`.iri != nil, "A blank node has no IRI a query can name it by.")
+        precondition(IRI(of: `class`) != nil, "A blank node has no IRI a query can name it by.")
         denotation = .class(`class`)
     }
 
     /// This term in SPARQL text: the IRI that denotes it, as an `IRIREF`.
     func render() -> String {
         switch denotation {
-        case .individual(let individual): individual.iri!.render()
-        case .class(let type): type.iri!.render()
+        case .individual(let individual): IRI(of: individual)!.render()
+        case .class(let type): IRI(of: type)!.render()
         }
     }
 
@@ -48,8 +49,8 @@ public struct SPARQLTerm: Hashable, Sendable {
     /// compared with it.
     func isDenoted(by iri: IRI) -> Bool {
         switch denotation {
-        case .individual(let individual): individual.iri == iri
-        case .class(let type): type.iri == iri
+        case .individual(let individual): IRI(of: individual) == iri
+        case .class(let type): IRI(of: type) == iri
         }
     }
 

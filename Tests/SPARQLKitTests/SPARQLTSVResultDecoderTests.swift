@@ -15,7 +15,7 @@ struct SPARQLTSVResultDecoderTests {
         #expect(result.bindings.count == 3)
         let first = try #require(result.bindings.first)
         #expect(first["name"] == (try literal("Alice")))
-        #expect(first["count"] == (try literal("3", datatype: xsdInteger)))
+        #expect(first["count"] == (.literal(try integer("3"))))
     }
 
     @Test("TSV decodes IRIs, blank nodes, language-tagged and typed literals")
@@ -25,7 +25,7 @@ struct SPARQLTSVResultDecoderTests {
         #expect(row["iri"] == iri("http://example.org/r"))
         #expect(try row["bnode"] == blank("b1"))
         #expect(row["lang"] == (try literal("bonjour", language: "fr")))
-        #expect(row["typed"] == (try literal("42", datatype: xsdInteger)))
+        #expect(row["typed"] == (.literal(try integer("42"))))
         #expect(row["plain"] == (try literal("text")))
     }
 

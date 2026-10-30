@@ -14,7 +14,7 @@ struct SPARQLXMLResultDecoderTests {
         #expect(result.bindings.count == 2)
         let first = try #require(result.bindings.first)
         #expect(first["name"] == (try literal("Alice", language: "en")))
-        #expect(first["count"] == (try literal("3", datatype: xsdInteger)))
+        #expect(first["count"] == (.literal(try integer("3"))))
     }
 
     @Test("An ASK result decodes to its boolean")

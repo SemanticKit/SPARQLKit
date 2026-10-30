@@ -61,11 +61,6 @@ let package = Package(
         .target(
             name: "EntailmentRegimes",
             dependencies: ["ServiceDescription", "FOAF"] + layers,
-            // RDF.ttl describes ent:RDF, which RDFTranslator would name `RDF`:
-            // a module-level name that hides the RDF module the generated
-            // Swift refers to. It is translated once the translator keeps
-            // the names of the modules a translation imports.
-            exclude: ["RDF.ttl"],
             plugins: translated
         ),
 

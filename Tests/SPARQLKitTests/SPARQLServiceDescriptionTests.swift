@@ -1,10 +1,12 @@
 import EntailmentRegimes
 import Formats
 import Foundation
+import IRIKit
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 import RDFCore
+import RDFFormats
 import ServiceDescription
 import Testing
 @testable import SPARQLKit
@@ -20,13 +22,14 @@ struct SPARQLServiceDescriptionTests {
         )
     }
 
-    /// A service that names these result formats, made in Swift as an
-    /// instance of the translated `sd:Service` class.
-    func service(resultFormats: [any Formats.Format] = [], regimes: [any ServiceDescription.EntailmentRegime] = []) -> any ServiceDescription.Service {
+    /// A description of a service that names these result formats and
+    /// entailment regimes, made in Swift: the service an instance of the
+    /// translated `sd:Service` class, the regimes the translated
+    /// `ent:Entailment` individuals.
+    func service(resultFormats: [any Formats.Format] = [], regimes: [any EntailmentRegimes.Entailment] = []) -> SPARQLServiceDescription {
         let service = ServiceDescription.ServiceIndividual()
         service.resultFormat = resultFormats
-        service.defaultEntailmentRegime = regimes
-        return service
+        return SPARQLServiceDescription(service: service, entailmentRegimes: regimes)
     }
 
     /// The translated individuals of a vocabulary module that are members of
@@ -38,18 +41,19 @@ struct SPARQLServiceDescriptionTests {
     @Test("A Turtle description decodes into the translated sd:Service and the individuals it names")
     func decodesIntoTranslatedIndividuals() throws {
         let turtle = try #require(String(data: try fixture("service_description.ttl"), encoding: .utf8))
-        let description = try SPARQLServiceDescriptionDecoder().decode(turtle)
+        let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle)
+        let description = decoded.service
 
         #expect(description is ServiceDescription.ServiceIndividual)
-        #expect(description.endpointURLs == [URL(string: "https://example.org/sparql")!])
+        #expect(decoded.endpointURLs == [URL(string: "https://example.org/sparql")!])
         #expect(description.supportsLanguage(ServiceDescription.SPARQLQuery))
         #expect(!description.supportsLanguage(ServiceDescription.SPARQL10Query))
         #expect(description.hasFeature(ServiceDescription.UnionDefaultGraph))
         #expect(description.supports(SPARQLAccept.jsonResults))
         #expect(!description.supports(SPARQLAccept.xmlResults))
         #expect(description.supports(SPARQLGraphAccept.turtle))
-        #expect(description.supportsEntailment(EntailmentRegimes.RDFS))
-        #expect(!description.supportsEntailment(EntailmentRegimes.`OWL-Direct`))
+        #expect(decoded.supportsEntailment(EntailmentRegimes.RDFS))
+        #expect(!decoded.supportsEntailment(EntailmentRegimes.`OWL-Direct`))
     }
 
     @Test("A term the vocabularies do not declare names nothing and is left out")
@@ -57,7 +61,7 @@ struct SPARQLServiceDescriptionTests {
         let description = try SPARQLServiceDescriptionDecoder().decode("""
             @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
             <https://example.org/sparql> sd:feature <https://example.org/vendor#FullText> , sd:EmptyGraphs .
-            """)
+            """).service
         #expect(description.feature.count == 1)
         #expect(description.hasFeature(ServiceDescription.EmptyGraphs))
     }
@@ -80,15 +84,15 @@ struct SPARQLServiceDescriptionTests {
     func mediaTypesMapToFormats() {
         #expect(SPARQLAccept.csv.format === Formats.SPARQL_Results_CSV)
         #expect(SPARQLGraphAccept.ntriples.format === Formats.`N-Triples`)
-        let description = service(resultFormats: [Formats.SPARQL_Results_JSON, Formats.Turtle])
+        let description = service(resultFormats: [Formats.SPARQL_Results_JSON, Formats.Turtle]).service
         #expect(description.supports(SPARQLAccept.jsonResults))
         #expect(!description.supports(SPARQLGraphAccept.ntriples))
-        #expect(service().supports(SPARQLAccept.tsv))
+        #expect(service().service.supports(SPARQLAccept.tsv))
     }
 
     @Test("Vocabulary IRIs decode back to their individuals, named graphs included", .tags(.vocabulary))
     func vocabularyIRIsDecode() throws {
-        let description = try SPARQLServiceDescriptionDecoder().decode("""
+        let decoded = try SPARQLServiceDescriptionDecoder().decode("""
             @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
             @prefix formats: <http://www.w3.org/ns/formats/> .
             @prefix entailment: <http://www.w3.org/ns/entailment/> .
@@ -103,17 +107,17 @@ struct SPARQLServiceDescriptionTests {
                 ]
               ] .
             """)
+        let description = decoded.service
         #expect(description.supportedLanguage.count == 1)
         #expect(description.supportedLanguage.first === ServiceDescription.SPARQL11Update)
         #expect(description.feature.count == 1)
         #expect(description.feature.first === ServiceDescription.SPARQLQuery)
         #expect(description.resultFormat.count == 1)
         #expect(description.resultFormat.first === Formats.`N-Triples`)
-        let namedGraph = try #require(description.defaultDataset.first?.namedGraph.first)
-        #expect(namedGraph.entailmentRegime.count == 1)
-        #expect(namedGraph.entailmentRegime.first === EntailmentRegimes.`OWL-Direct`)
-        #expect(description.entailmentRegimes.count == 1)
-        #expect(description.supportsEntailment(EntailmentRegimes.`OWL-Direct`))
+        #expect(description.defaultDataset.first?.namedGraph.count == 1)
+        #expect(decoded.entailmentRegimes.count == 1)
+        #expect(decoded.entailmentRegimes.first === EntailmentRegimes.`OWL-Direct`)
+        #expect(decoded.supportsEntailment(EntailmentRegimes.`OWL-Direct`))
     }
 
     @Test("Every format the published formats vocabulary declares decodes into its individual", .tags(.vocabulary))
@@ -131,7 +135,7 @@ struct SPARQLServiceDescriptionTests {
                 formats:SPARQL_Results_XML , formats:SPARQL_Results_JSON , formats:SPARQL_Results_CSV ,
                 formats:SPARQL_Results_TSV , formats:Turtle , formats:TriG .
             """
-        let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle).resultFormat
+        let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle).service.resultFormat
         // The formats the translated vocabulary holds: the decoder must know
         // each of them, so the vocabulary and the decoder cannot drift.
         let declared = individuals(Formats.ontology, (any Formats.Format).self)
@@ -142,41 +146,42 @@ struct SPARQLServiceDescriptionTests {
         #expect(decoded.contains { $0 === Formats.RDFa })
     }
 
-    @Test("Every entailment regime of SPARQL 1.2 Entailment Regimes decodes into its individual", .tags(.vocabulary))
+    @Test("Every entailment regime the published entailment documents describe decodes into its individual", .tags(.vocabulary))
     func decodesEveryDeclaredRegime() throws {
+        // The regimes http://www.w3.org/ns/entailment/ lists (rdfs:seeAlso of
+        // ent:Entailment), each named as the document its IRI dereferences
+        // to describes it: OWL-RDF-Based.ttl describes ent:OWL-RDF-based.
         let turtle = """
             @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
             @prefix ent: <http://www.w3.org/ns/entailment/> .
             <https://example.org/sparql> a sd:Service ;
-              sd:defaultEntailmentRegime ent:RDFS , ent:D , ent:OWL-RDF-Based , ent:OWL-Direct , ent:RIF , ent:Simple .
+              sd:defaultEntailmentRegime ent:Simple , ent:RDF , ent:RDFS , ent:D , ent:OWL-RDF-based , ent:OWL-Direct , ent:RIF .
             """
-        let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle).defaultEntailmentRegime
-        let declared = individuals(EntailmentRegimes.ontology, (any ServiceDescription.EntailmentRegime).self)
-        let regimes: [any ServiceDescription.EntailmentRegime] = [
-            EntailmentRegimes.RDFS, EntailmentRegimes.D, EntailmentRegimes.`OWL-RDF-Based`,
-            EntailmentRegimes.`OWL-Direct`, EntailmentRegimes.RIF
+        let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle).entailmentRegimes
+        let regimes: [any EntailmentRegimes.Entailment] = [
+            EntailmentRegimes.Simple, EntailmentRegimes.RDF, EntailmentRegimes.RDFS, EntailmentRegimes.D,
+            EntailmentRegimes.`OWL-RDF-based`, EntailmentRegimes.`OWL-Direct`, EntailmentRegimes.RIF
         ]
 
-        // ent:Simple is an ent:Entailment, but SPARQL 1.2 Entailment Regimes
-        // defines no regime for it, so it is no sd:EntailmentRegime.
-        #expect(declared.count == regimes.count)
         #expect(decoded.count == regimes.count)
         #expect(zip(decoded, regimes).allSatisfy { $0 === $1 })
-        #expect(!(EntailmentRegimes.Simple is any ServiceDescription.EntailmentRegime))
+        // ent:RDF is its own individual, apart from the RDF module it shares
+        // its name with.
+        #expect(EntailmentRegimes.RDF !== EntailmentRegimes.RDFS)
     }
 
     @Test("Every language and feature the service description vocabulary declares decodes into its individual", .tags(.vocabulary))
     func decodesEveryDeclaredFeature() throws {
         let features = individuals(ServiceDescription.ontology, (any ServiceDescription.Feature).self)
         let languages = individuals(ServiceDescription.ontology, (any ServiceDescription.Language).self)
-        let list = features.compactMap { $0.iri }.map { "<\($0.rawValue)>" }.joined(separator: " , ")
+        let list = features.compactMap { IRI(of: $0) }.map { "<\($0.rawValue)>" }.joined(separator: " , ")
         let turtle = """
             @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
             <https://example.org/sparql> a sd:Service ;
               sd:feature \(list) ;
               sd:supportedLanguage \(list) .
             """
-        let description = try SPARQLServiceDescriptionDecoder().decode(turtle)
+        let description = try SPARQLServiceDescriptionDecoder().decode(turtle).service
 
         // sparql-service-description.ttl declares five languages and five
         // other features.
@@ -195,19 +200,16 @@ struct SPARQLServiceDescriptionTests {
             "regime": .iri("http://www.w3.org/ns/entailment/OWL-Direct"),
             "other": .iri("http://www.w3.org/ns/entailment/Unknown")
         ]
-        let regimes: [any ServiceDescription.EntailmentRegime] = [EntailmentRegimes.RDFS, EntailmentRegimes.`OWL-Direct`]
+        let regimes: [any EntailmentRegimes.Entailment] = [EntailmentRegimes.RDFS, EntailmentRegimes.`OWL-Direct`]
         #expect(binding.individual("regime", among: regimes) === EntailmentRegimes.`OWL-Direct`)
         #expect(binding.individual("other", among: regimes) == nil)
     }
 
-    @Test("Every entailment regime is a feature by its type", .tags(.vocabulary))
-    func regimesAreFeatures() {
-        let regimes = individuals(EntailmentRegimes.ontology, (any ServiceDescription.EntailmentRegime).self)
-        // sd:EntailmentRegime is a subclass of sd:Feature, so each regime is
-        // a feature by its type: this upcast compiles only if that holds.
-        let features: [any ServiceDescription.Feature] = regimes.map { $0 }
-        #expect(features.count == regimes.count)
-        #expect(service(regimes: regimes).supportsEntailment(EntailmentRegimes.RIF))
+    @Test("A description that names no entailment regime restricts none", .tags(.vocabulary))
+    func noRegimeRestrictsNone() {
+        #expect(service().supportsEntailment(EntailmentRegimes.RIF))
+        #expect(service(regimes: [EntailmentRegimes.RDF]).supportsEntailment(EntailmentRegimes.RDF))
+        #expect(!service(regimes: [EntailmentRegimes.RDF]).supportsEntailment(EntailmentRegimes.RIF))
     }
 
     @Test("An individual that is not an entailment regime does not decode as one", .tags(.vocabulary))
@@ -219,8 +221,8 @@ struct SPARQLServiceDescriptionTests {
               sd:defaultEntailmentRegime formats:Turtle , sd:SPARQLQuery .
             """
         #expect(try SPARQLServiceDescriptionDecoder().decode(turtle).entailmentRegimes.isEmpty)
-        #expect(!(Formats.Turtle is any ServiceDescription.EntailmentRegime))
-        #expect(!(ServiceDescription.SPARQLQuery is any ServiceDescription.EntailmentRegime))
+        #expect(!(Formats.Turtle is any EntailmentRegimes.Entailment))
+        #expect(!(ServiceDescription.SPARQLQuery is any EntailmentRegimes.Entailment))
     }
 
     @Test("The client refuses a result format the endpoint does not offer", .tags(.protocol))

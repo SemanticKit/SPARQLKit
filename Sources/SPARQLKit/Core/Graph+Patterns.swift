@@ -1,6 +1,7 @@
 import IRIKit
 import RDF
 import RDFCore
+import RDFFormats
 
 extension RDFCore.Graph {
     /// The objects of the triples a decoded document states about `subject`
@@ -11,7 +12,7 @@ extension RDFCore.Graph {
     /// where a decoder matches the document's triples.
     func objects(_ property: any RDFCore.Resource, of subject: SubjectTerm) -> [ObjectTerm] {
         compactMap { triple in
-            triple.subject == subject && triple.predicate == property.iri ? triple.object : nil
+            triple.subject == subject && triple.predicate == IRI(of: property) ? triple.object : nil
         }
     }
 
@@ -23,14 +24,14 @@ extension RDFCore.Graph {
 
     /// The nodes the document states have the property `property`.
     func subjects(_ property: any RDFCore.Resource) -> Set<SubjectTerm> {
-        Set(compactMap { $0.predicate == property.iri ? $0.subject : nil })
+        Set(compactMap { $0.predicate == IRI(of: property) ? $0.subject : nil })
     }
 
     /// The nodes the document states are members of `class` (`rdf:type`).
     func members(of class: any RDFCore.ResourceClass.Type) -> Set<SubjectTerm> {
-        guard let classIRI = `class`.iri else { return [] }
+        guard let classIRI = IRI(of: `class`) else { return [] }
         return Set(compactMap { triple in
-            triple.predicate == RDF.type.iri && triple.object == .iri(classIRI) ? triple.subject : nil
+            triple.predicate == IRI(of: RDF.type) && triple.object == .iri(classIRI) ? triple.subject : nil
         })
     }
 
