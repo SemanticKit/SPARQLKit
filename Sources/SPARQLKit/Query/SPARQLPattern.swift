@@ -112,7 +112,7 @@ public indirect enum SPARQLPattern: Hashable, Sendable {
         case .values(let values):
             values.render(into: &lines)
         case .subquery(let query):
-            lines.block("") { query.render(into: &$0) }
+            lines.block("") { query.renderSubSelect(into: &$0) }
         }
     }
 

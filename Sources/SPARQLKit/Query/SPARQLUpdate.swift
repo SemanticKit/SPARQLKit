@@ -65,29 +65,62 @@ public enum SPARQLUpdateOperation: Hashable, Sendable {
     /// DeleteClause for DELETE, nor in DELETE DATA"; and `QuadPattern`
     /// templates are triples, not property paths.
     func validate() throws {
-        func check(_ triples: [SPARQLTriplePattern], ground: Bool, blankNodes: Bool, _ name: String) throws {
+        switch self {
+        case .insertData(let triples, _):
+            try Template.insertData.validate(triples)
+        case .deleteData(let triples, _):
+            try Template.deleteData.validate(triples)
+        case .modify(_, let delete, let insert, _):
+            try Template.deleteClause.validate(delete)
+            try Template.insertClause.validate(insert)
+        case .load, .clear, .create, .drop, .copy, .move, .add:
+            break
+        }
+    }
+
+    /// The grammar positions (SPARQL 1.2 Query Language §19.8) an update
+    /// operation's triples sit in, each with the triples it admits.
+    enum Template {
+        /// `INSERT DATA QuadData`.
+        case insertData
+        /// `DELETE DATA QuadData`.
+        case deleteData
+        /// `DeleteClause` of `DELETE ... WHERE`.
+        case deleteClause
+        /// `InsertClause` of `INSERT ... WHERE`.
+        case insertClause
+
+        var name: String {
+            switch self {
+            case .insertData: "INSERT DATA"
+            case .deleteData: "DELETE DATA"
+            case .deleteClause: "A DELETE template"
+            case .insertClause: "An INSERT template"
+            }
+        }
+
+        func validate(_ triples: [SPARQLTriplePattern]) throws {
             for triple in triples {
                 if triple.verb.isPath {
                     throw SPARQLError.invalidRequest("\(name) cannot hold a property path.")
                 }
-                if ground, !triple.variables.isEmpty {
-                    throw SPARQLError.invalidRequest("\(name) holds ground triples only, not variables.")
+                switch self {
+                case .insertData, .deleteData:
+                    if !triple.variables.isEmpty {
+                        throw SPARQLError.invalidRequest("\(name) holds ground triples only, not variables.")
+                    }
+                case .deleteClause, .insertClause:
+                    break
                 }
-                if !blankNodes, triple.subject.containsBlankNode || triple.object.containsBlankNode {
-                    throw SPARQLError.invalidRequest("\(name) cannot hold a blank node.")
+                switch self {
+                case .deleteData, .deleteClause:
+                    if triple.subject.containsBlankNode || triple.object.containsBlankNode {
+                        throw SPARQLError.invalidRequest("\(name) cannot hold a blank node.")
+                    }
+                case .insertData, .insertClause:
+                    break
                 }
             }
-        }
-        switch self {
-        case .insertData(let triples, _):
-            try check(triples, ground: true, blankNodes: true, "INSERT DATA")
-        case .deleteData(let triples, _):
-            try check(triples, ground: true, blankNodes: false, "DELETE DATA")
-        case .modify(_, let delete, let insert, _):
-            try check(delete, ground: false, blankNodes: false, "A DELETE template")
-            try check(insert, ground: false, blankNodes: true, "An INSERT template")
-        case .load, .clear, .create, .drop, .copy, .move, .add:
-            break
         }
     }
 

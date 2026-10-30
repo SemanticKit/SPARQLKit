@@ -50,13 +50,25 @@ public struct SPARQLSelectQuery: SPARQLResultsQuery, Hashable {
         projection.isEmpty ? SPARQLPattern.boundVariables(of: patterns) : Set(projection.map(\.variable))
     }
 
+    /// The query as a SPARQL 1.2 `SelectQuery` (§19.8 [7]): `SelectClause`,
+    /// `DatasetClause*`, `WhereClause` and `SolutionModifier`.
     public func render() -> String {
         var lines = SPARQLLines()
-        render(into: &lines, asSubquery: false)
+        renderSelectClause(into: &lines)
+        for graph in fromGraphs { lines.append("FROM " + graph.render()) }
+        for graph in fromNamedGraphs { lines.append("FROM NAMED " + graph.render()) }
+        renderWhereClauseAndModifiers(into: &lines)
         return lines.text
     }
 
-    func render(into lines: inout SPARQLLines, asSubquery: Bool = true) {
+    /// The query as a SPARQL 1.2 `SubSelect` (§19.8 [8]), which has no
+    /// dataset clause.
+    func renderSubSelect(into lines: inout SPARQLLines) {
+        renderSelectClause(into: &lines)
+        renderWhereClauseAndModifiers(into: &lines)
+    }
+
+    func renderSelectClause(into lines: inout SPARQLLines) {
         var select = "SELECT"
         if distinct {
             select += " DISTINCT"
@@ -65,10 +77,9 @@ public struct SPARQLSelectQuery: SPARQLResultsQuery, Hashable {
         }
         select += projection.isEmpty ? " *" : " " + projection.map { $0.render() }.joined(separator: " ")
         lines.append(select)
-        if !asSubquery {
-            for graph in fromGraphs { lines.append("FROM " + graph.render()) }
-            for graph in fromNamedGraphs { lines.append("FROM NAMED " + graph.render()) }
-        }
+    }
+
+    func renderWhereClauseAndModifiers(into lines: inout SPARQLLines) {
         lines.block("WHERE") { SPARQLPattern.render(patterns, into: &$0) }
         if !groupBy.isEmpty {
             lines.append("GROUP BY " + groupBy.map { $0.render() }.joined(separator: " "))
