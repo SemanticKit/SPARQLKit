@@ -1,18 +1,18 @@
+import FOAF
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 import IRIKit
-import RDFKit
 import Testing
 @testable import SPARQLKit
 
 @Suite("Federated queries", .tags(.rendering))
 struct SPARQLFederatedQueryTests {
     let dbpedia: IRI = "http://dbpedia.org/sparql"
-    let knows = Foaf.knows.sparql
-    let foafName = Foaf.name.sparql
-    let page = Foaf.page.sparql
+    let knows = FOAF.knows.sparql
+    let foafName = FOAF.name.sparql
+    let page = FOAF.page.sparql
 
     func pattern(_ s: Variable, _ p: SPARQLTerm, _ o: Variable) -> SPARQLPattern {
         .triple(SPARQLTriplePattern(.variable(s), .property(p), .variable(o)))

@@ -1,3 +1,5 @@
+import Formats
+
 /// A media type for the graph a `CONSTRUCT` or `DESCRIBE` query returns, or
 /// the Graph Store Protocol exchanges (SPARQL 1.2 Protocol §2.1.6).
 ///
@@ -11,7 +13,7 @@ public enum SPARQLGraphAccept: String, Sendable, CaseIterable {
     public var format: any Formats.Format {
         switch self {
         case .turtle: Formats.Turtle
-        case .ntriples: Formats.N_Triples
+        case .ntriples: Formats.`N-Triples`
         }
     }
 }

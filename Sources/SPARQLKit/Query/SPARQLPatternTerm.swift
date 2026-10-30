@@ -8,8 +8,8 @@ public indirect enum SPARQLPatternTerm: Hashable, Sendable {
     /// A query variable.
     case variable(Variable)
 
-    /// A term declared in an `@Ontology`: a class, property, datatype or
-    /// named individual, held as its generated type.
+    /// A translated term: a class, or an individual such as a property or
+    /// a format, held as the Swift the vocabulary was translated into.
     case term(SPARQLTerm)
 
     /// A resource whose identity is external to the runtime, such as a

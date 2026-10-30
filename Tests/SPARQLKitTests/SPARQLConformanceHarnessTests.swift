@@ -1,4 +1,5 @@
 import Foundation
+import SPARQLConformance
 import Testing
 @testable import SPARQLKit
 

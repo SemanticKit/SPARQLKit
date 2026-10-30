@@ -1,3 +1,5 @@
+import Formats
+
 /// A media type for the results of a `SELECT` or `ASK` query
 /// (SPARQL 1.2 Protocol §2.1.6).
 public enum SPARQLAccept: String, Sendable, CaseIterable {

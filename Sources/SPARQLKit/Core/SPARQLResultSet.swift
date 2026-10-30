@@ -45,21 +45,22 @@ public struct SPARQLResultSet: Hashable, Sendable {
 }
 
 extension Dictionary where Key == Variable, Value == ObjectTerm {
-    /// The declared individual among `candidates` that the IRI bound to
-    /// `variable` names, decoded into its generated type.
+    /// The translated individual among `candidates` that the IRI bound to
+    /// `variable` denotes: the result term decoded into the individual
+    /// itself.
     ///
-    ///     let diet = binding.individual("diet", among: [Fauna.carnivore, Fauna.herbivore])
+    ///     let format = binding.individual("format", among: [Formats.Turtle, Formats.TriG])
     ///
     /// Returns `nil` when the variable is unbound, is bound to something other
-    /// than an IRI, or names none of the candidates.
+    /// than an IRI, or denotes none of the candidates.
     public func individual<Individual>(_ variable: Variable, among candidates: [Individual]) -> Individual? {
         guard case .iri(let iri)? = self[variable] else { return nil }
-        return candidates.individual(named: iri)
+        return candidates.individual(denotedBy: iri)
     }
 
-    /// Whether the IRI bound to `variable` names this declared term.
+    /// Whether the IRI bound to `variable` denotes this translated term.
     public func binds(_ variable: Variable, to term: SPARQLTerm) -> Bool {
         guard case .iri(let iri)? = self[variable] else { return false }
-        return iri == term.iri
+        return term.isDenoted(by: iri)
     }
 }

@@ -1,7 +1,7 @@
+import FOAF
 import Foundation
 import IRIKit
 import RDFCore
-import RDFKit
 import Testing
 @testable import SPARQLKit
 
@@ -87,14 +87,14 @@ struct SPARQLGrammarValidationTests {
     func describeNamesVariablesAndIRIs() throws {
         #expect(throws: SPARQLError.self) { try SPARQLDescribeQuery([.literal(Literal("x"))]) }
         #expect(throws: SPARQLError.self) { try SPARQLDescribeQuery([.blankNode(try SPARQLBlankNode("b"))]) }
-        #expect(try SPARQLDescribeQuery([.term(Foaf.PersonIndividual.sparql)]).render() == "DESCRIBE <http://xmlns.com/foaf/0.1/Person>")
+        #expect(try SPARQLDescribeQuery([.term(FOAF.PersonIndividual.sparql)]).render() == "DESCRIBE <http://xmlns.com/foaf/0.1/Person>")
     }
 
     @Test("A CONSTRUCT template holds triples, not property paths")
     func constructTemplateHoldsNoPaths() {
         #expect(throws: SPARQLError.self) {
             try SPARQLConstructQuery(
-                [SPARQLTriplePattern(.variable("s"), .path(.oneOrMore(.property(Foaf.knows.sparql))), .variable("o"))],
+                [SPARQLTriplePattern(.variable("s"), .path(.oneOrMore(.property(FOAF.knows.sparql))), .variable("o"))],
                 where: anything
             )
         }

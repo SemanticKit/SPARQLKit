@@ -1,8 +1,12 @@
 import Foundation
 import IRIKit
 import RDFCore
+import RDF
 import RDFFormats
-import RDFKit
+import SPARQLConformance
+import TestManifest
+import TestQuery
+import TestUpdate
 
 public enum SPARQLW3CManifestError: Error, Equatable, Sendable {
     case missingManifestNode
@@ -15,11 +19,12 @@ public enum SPARQLW3CManifestError: Error, Equatable, Sendable {
 /// Reads W3C test manifests into a ``SPARQLConformanceSuite``.
 ///
 /// A manifest is Turtle, read by RDFFormats' ``TurtleDecoder``. The terms it
-/// is written in are the generated terms of ``TestManifest``, ``QueryTest``,
-/// ``UpdateTest`` and ``SPARQLConformance``. As the manifest is read, each
-/// entry's type IRI becomes the generated individual of the test class it
-/// names, a ``SPARQLConformanceTest``, and each `sk:queryTemplate` node's type
-/// becomes the ``SPARQLConformanceQueryTemplate`` it names.
+/// is written in are the translated vocabularies `TestManifest`, `TestQuery`,
+/// `TestUpdate` and `SPARQLConformance`, and the manifest's triples are
+/// matched by their translated properties. As the manifest is read, each
+/// entry's type IRI becomes the generated class of the test it names, a
+/// ``SPARQLConformanceTest``, and each `sk:queryTemplate` node's type becomes
+/// the ``SPARQLConformanceQueryTemplate`` it names.
 public struct SPARQLW3CManifestLoader {
     public init() {}
 
@@ -40,17 +45,14 @@ public struct SPARQLW3CManifestLoader {
         loadIncludedManifest: ((String) throws -> Data)? = nil
     ) throws -> SPARQLConformanceSuite {
         let base = baseURL.flatMap { IRI(rawValue: $0.absoluteString) }
-        let graph = ManifestGraph(triples: try TurtleDecoder(base: base).decode(turtle))
+        let graph = try TurtleDecoder(base: base).decode(turtle)
 
-        guard let manifest = graph.subjects(
-            RDF.type.metadata.id,
-            TestManifest.ManifestIndividual.metadata.id
-        ).first else {
+        guard let manifest = graph.members(of: TestManifest.ManifestIndividual.self).first else {
             throw SPARQLW3CManifestError.missingManifestNode
         }
-        let name = graph.literal(manifest, TestManifest.name.metadata.id) ?? "W3C conformance subset"
+        let name = graph.lexicalForms(TestManifest.name, of: manifest).first ?? "W3C conformance subset"
 
-        if let entries = graph.object(manifest, TestManifest.entries.metadata.id) {
+        if let entries = graph.object(TestManifest.entries, of: manifest) {
             let cases = try graph.list(entries).map { entry in
                 guard let node = entry.subject else {
                     throw SPARQLW3CManifestError.malformedEntry("An mf:entries item is not a node.")
@@ -60,7 +62,7 @@ public struct SPARQLW3CManifestLoader {
             return SPARQLConformanceSuite(name: name, cases: cases)
         }
 
-        if let includes = graph.object(manifest, TestManifest.include.metadata.id) {
+        if let includes = graph.object(TestManifest.include, of: manifest) {
             guard let loadIncludedManifest else {
                 throw SPARQLW3CManifestError.missingIncludeResolver
             }
@@ -85,34 +87,36 @@ public struct SPARQLW3CManifestLoader {
 
 extension SPARQLConformanceCase {
     /// The case an `mf:entries` item of a manifest describes.
-    init(manifestEntry node: SubjectTerm, in graph: ManifestGraph) throws {
+    init(manifestEntry node: SubjectTerm, in graph: RDFCore.Graph) throws {
         let id = node.manifestIdentifier
         let test = try graph.test(of: node)
-        let action = graph.object(node, TestManifest.action.metadata.id)?.subject
+        let action = graph.object(TestManifest.action, of: node)?.subject
 
-        func literals(_ predicate: IRI) -> [String] {
-            graph.objects(node, predicate).compactMap(\.lexicalForm)
-        }
-        func iris(_ predicate: IRI) throws -> [IRI] {
-            try literals(predicate).map { text in
+        func iris(_ property: any RDFCore.Resource) throws -> [IRI] {
+            try graph.lexicalForms(property, of: node).map { text in
                 guard let iri = IRI(rawValue: text) else {
                     throw SPARQLW3CManifestError.malformedEntry("\(id): <\(text)> is not an absolute IRI.")
                 }
                 return iri
             }
         }
-        func actionIRIs(_ predicate: IRI) -> [IRI] {
-            action.map { graph.iris($0, predicate) } ?? []
+        func actionIRIs(_ property: any RDFCore.Resource) -> [IRI] {
+            action.map { graph.iris(property, of: $0) } ?? []
         }
-        func actionNamedGraphs(_ graphData: IRI, _ graphName: IRI) -> [IRI] {
+        // `ut:graphData` names a named graph's document directly, or through
+        // the `ut:graph` of a node that also labels it (test-update.ttl).
+        func actionUpdateNamedGraphs() -> [IRI] {
             guard let action else { return [] }
-            return graph.objects(action, graphData).flatMap { data -> [IRI] in
+            return graph.objects(TestUpdate.graphData, of: action).flatMap { data -> [IRI] in
                 switch data {
                 case .iri(let iri): [iri]
-                case .blankNode(let node): graph.iris(.blankNode(node), graphName)
+                case .blankNode(let node): graph.iris(TestUpdate.graph, of: .blankNode(node))
                 case .literal, .tripleTerm: []
                 }
             }
+        }
+        func literal(_ property: any RDFCore.Resource) -> String? {
+            graph.lexicalForms(property, of: node).first
         }
 
         let template = try graph.queryTemplate(of: node)
@@ -121,54 +125,25 @@ extension SPARQLConformanceCase {
             test: test,
             fixtureFile: graph.fixtureFile(of: node, action: action),
             queryTemplate: template,
-            queryText: graph.literal(node, SPARQLConformance.query.metadata.id),
-            updateText: graph.literal(node, SPARQLConformance.update.metadata.id),
-            defaultGraphs: try iris(SPARQLConformance.defaultGraphURI.metadata.id)
-                + actionIRIs(QueryTest.data.metadata.id),
-            namedGraphs: try iris(SPARQLConformance.namedGraphURI.metadata.id)
-                + actionNamedGraphs(QueryTest.graphData.metadata.id, QueryTest.graph.metadata.id),
-            usingGraphs: try iris(SPARQLConformance.usingGraphURI.metadata.id)
-                + actionIRIs(UpdateTest.data.metadata.id),
-            usingNamedGraphs: try iris(SPARQLConformance.usingNamedGraphURI.metadata.id)
-                + actionNamedGraphs(UpdateTest.graphData.metadata.id, UpdateTest.graph.metadata.id),
-            expectVariableCount: graph.literal(node, SPARQLConformance.expectVariableCount.metadata.id).flatMap { Int($0) },
-            expectBindingCount: graph.literal(node, SPARQLConformance.expectBindingCount.metadata.id).flatMap { Int($0) },
-            expectBoolean: graph.literal(node, SPARQLConformance.expectBoolean.metadata.id).flatMap { Bool($0.lowercased()) },
-            expectContains: literals(SPARQLConformance.expectContains.metadata.id),
-            expectURLContains: literals(SPARQLConformance.expectURLContains.metadata.id),
-            expectBodyContains: literals(SPARQLConformance.expectBodyContains.metadata.id),
-            expectHeaderContains: literals(SPARQLConformance.expectHeaderContains.metadata.id)
+            queryText: literal(SPARQLConformance.query),
+            updateText: literal(SPARQLConformance.update),
+            defaultGraphs: try iris(SPARQLConformance.defaultGraphURI) + actionIRIs(TestQuery.data),
+            namedGraphs: try iris(SPARQLConformance.namedGraphURI) + actionIRIs(TestQuery.graphData),
+            usingGraphs: try iris(SPARQLConformance.usingGraphURI) + actionIRIs(TestUpdate.data),
+            usingNamedGraphs: try iris(SPARQLConformance.usingNamedGraphURI) + actionUpdateNamedGraphs(),
+            expectVariableCount: literal(SPARQLConformance.expectVariableCount).flatMap { Int($0) },
+            expectBindingCount: literal(SPARQLConformance.expectBindingCount).flatMap { Int($0) },
+            expectBoolean: literal(SPARQLConformance.expectBoolean).flatMap { Bool($0.lowercased()) },
+            expectContains: graph.lexicalForms(SPARQLConformance.expectContains, of: node),
+            expectURLContains: graph.lexicalForms(SPARQLConformance.expectURLContains, of: node),
+            expectBodyContains: graph.lexicalForms(SPARQLConformance.expectBodyContains, of: node),
+            expectHeaderContains: graph.lexicalForms(SPARQLConformance.expectHeaderContains, of: node)
         )
     }
 }
 
-/// A decoded manifest, read by pattern.
-struct ManifestGraph {
-    let triples: Graph
-
-    func subjects(_ predicate: IRI, _ object: IRI) -> [SubjectTerm] {
-        triples.filter { $0.predicate == predicate && $0.object == .iri(object) }.map(\.subject)
-    }
-
-    func objects(_ subject: SubjectTerm, _ predicate: IRI) -> [ObjectTerm] {
-        triples.filter { $0.subject == subject && $0.predicate == predicate }.map(\.object)
-    }
-
-    func object(_ subject: SubjectTerm, _ predicate: IRI) -> ObjectTerm? {
-        triples.first { $0.subject == subject && $0.predicate == predicate }?.object
-    }
-
-    func iris(_ subject: SubjectTerm, _ predicate: IRI) -> [IRI] {
-        objects(subject, predicate).compactMap { object in
-            if case .iri(let iri) = object { return iri }
-            return nil
-        }
-    }
-
-    func literal(_ subject: SubjectTerm, _ predicate: IRI) -> String? {
-        object(subject, predicate)?.lexicalForm
-    }
-
+/// A decoded manifest, read by its translated vocabularies.
+extension RDFCore.Graph {
     /// The test a manifest entry is: the generated individual of the first
     /// test class its `rdf:type` names that SPARQLKit runs.
     func test(of node: SubjectTerm) throws -> any SPARQLConformanceTest {
@@ -187,10 +162,10 @@ struct ManifestGraph {
             SPARQLConformance.GraphStorePutNamedRequestTestIndividual(),
             SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual(),
             TestManifest.QueryEvaluationTestIndividual(), TestManifest.UpdateEvaluationTestIndividual(),
-            TestManifest.CSVResultFormatTestIndividual()
+            SPARQLConformance.CSVResultFormatTestIndividual()
         ]
-        for type in iris(node, RDF.type.metadata.id) {
-            if let test = tests.individual(named: type) { return test }
+        for type in iris(RDF.type, of: node) {
+            if let test = tests.member(ofClassDenotedBy: type) { return test }
         }
         throw SPARQLW3CManifestError.unsupportedTest(node.manifestIdentifier)
     }
@@ -198,11 +173,11 @@ struct ManifestGraph {
     /// The typed query a render case names: the node its `sk:queryTemplate`
     /// points at is an individual of a template class.
     func queryTemplate(of node: SubjectTerm) throws -> (any SPARQLConformanceQueryTemplate)? {
-        guard let object = object(node, SPARQLConformance.queryTemplate.metadata.id) else { return nil }
+        guard let object = object(SPARQLConformance.queryTemplate, of: node) else { return nil }
         let templates: [any SPARQLConformanceQueryTemplate] = [SPARQLConformance.BasicSelectQueryIndividual()]
         if let templateNode = object.subject {
-            for type in iris(templateNode, RDF.type.metadata.id) {
-                if let template = templates.individual(named: type) { return template }
+            for type in iris(RDF.type, of: templateNode) {
+                if let template = templates.member(ofClassDenotedBy: type) { return template }
             }
         }
         throw SPARQLW3CManifestError.malformedEntry(
@@ -213,15 +188,14 @@ struct ManifestGraph {
     /// The document a case reads: its `mf:result`, or the query or update its
     /// `mf:action` names.
     func fixtureFile(of node: SubjectTerm, action: SubjectTerm?) -> String? {
-        if let result = iris(node, TestManifest.result.metadata.id).first {
+        if let result = iris(TestManifest.result, of: node).first {
             return result.manifestFileName
         }
-        if case .iri(let document)? = object(node, TestManifest.action.metadata.id) {
+        if case .iri(let document)? = object(TestManifest.action, of: node) {
             return document.manifestFileName
         }
         guard let action else { return nil }
-        let document = iris(action, QueryTest.query.metadata.id).first
-            ?? iris(action, UpdateTest.request.metadata.id).first
+        let document = iris(TestQuery.query, of: action).first ?? iris(TestUpdate.request, of: action).first
         return document?.manifestFileName
     }
 
@@ -229,23 +203,16 @@ struct ManifestGraph {
     func list(_ head: ObjectTerm) throws -> [ObjectTerm] {
         var members: [ObjectTerm] = []
         var node = head
-        while node != .iri(type(of: RDF.nil).metadata.id) {
+        while node.subject.flatMap(\.iri) != RDF.nil.iri {
             guard let cell = node.subject,
-                  let first = object(cell, RDF.first.metadata.id),
-                  let rest = object(cell, RDF.rest.metadata.id) else {
+                  let first = object(RDF.first, of: cell),
+                  let rest = object(RDF.rest, of: cell) else {
                 throw SPARQLW3CManifestError.malformedEntry("Malformed RDF list: missing rdf:first or rdf:rest.")
             }
             members.append(first)
             node = rest
         }
         return members
-    }
-}
-
-private extension ObjectTerm {
-    var lexicalForm: String? {
-        if case .literal(let literal) = self { return literal.lexicalForm }
-        return nil
     }
 }
 

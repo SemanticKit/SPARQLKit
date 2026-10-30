@@ -5,7 +5,6 @@ import FoundationNetworking
 import IRIKit
 import RDFCore
 import RDFFormats
-import RDFKit
 
 /// The cases of one conformance run, read from W3C test manifests by
 /// ``SPARQLW3CManifestLoader``.

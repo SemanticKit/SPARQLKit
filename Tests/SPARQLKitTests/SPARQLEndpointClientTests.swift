@@ -1,3 +1,5 @@
+import FOAF
+import Formats
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -5,7 +7,6 @@ import FoundationNetworking
 import IRIKit
 import RDFCore
 import RDFFormats
-import RDFKit
 import Testing
 @testable import SPARQLKit
 
@@ -15,7 +16,7 @@ struct SPARQLEndpointClientTests {
     let updateURL = URL(string: "https://example.org/update")!
     let select = SPARQLSelectQuery(["s"], where: [.triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o")))])
     let insertData = SPARQLUpdateOperation.insertData([
-        SPARQLTriplePattern(.iri("http://example.org/s"), .property(Foaf.knows.sparql), .iri("http://example.org/o"))
+        SPARQLTriplePattern(.iri("http://example.org/s"), .property(FOAF.knows.sparql), .iri("http://example.org/o"))
     ])
 
     func client(_ session: MockSession = MockSession(), update: Bool = true, headers: [String: String] = [:]) -> SPARQLEndpointClient {
@@ -57,8 +58,8 @@ struct SPARQLEndpointClientTests {
     func getEncodesPlus() async throws {
         let session = MockSession(body: #"{"head":{"vars":["o"]},"results":{"bindings":[]}}"#)
         let query = SPARQLSelectQuery(["o"], where: [
-            .triple(SPARQLTriplePattern(.variable("s"), .path(.oneOrMore(.property(Foaf.knows.sparql))), .variable("o"))),
-            .bind(.binary(.variable("n"), .add, .literal(try Literal("1", datatype: XSD.integer.metadata.id))), as: "m")
+            .triple(SPARQLTriplePattern(.variable("s"), .path(.oneOrMore(.property(FOAF.knows.sparql))), .variable("o"))),
+            .bind(.binary(.variable("n"), .add, .literal(try Literal("1", datatype: xsdInteger))), as: "m")
         ])
         _ = try await client(session).executeSelect(query, method: .get, options: SPARQLQueryRequestOptions(
             defaultGraphs: ["https://example.org/graphs/a+b"]
@@ -232,11 +233,11 @@ struct SPARQLEndpointClientTests {
         let session = MockSession(body: #"{"head":{"vars":["f","t"]},"results":{"bindings":[{"f":{"type":"uri","value":"http://www.w3.org/ns/formats/Turtle"},"t":{"type":"uri","value":"http://xmlns.com/foaf/0.1/Person"}}]}}"#)
         let result = try await client(session).executeSelect(select)
         let binding = try #require(result.bindings.first)
-        let formats: [any Formats.Format] = [Formats.N_Triples, Formats.Turtle]
+        let formats: [any Formats.Format] = [Formats.`N-Triples`, Formats.Turtle]
         #expect(binding.individual("f", among: formats) === Formats.Turtle)
         #expect(binding.individual("t", among: formats) == nil)
         #expect(binding.individual("unbound", among: formats) == nil)
-        #expect(binding.binds("t", to: Foaf.PersonIndividual.sparql))
-        #expect(!binding.binds("t", to: Foaf.knows.sparql))
+        #expect(binding.binds("t", to: FOAF.PersonIndividual.sparql))
+        #expect(!binding.binds("t", to: FOAF.knows.sparql))
     }
 }

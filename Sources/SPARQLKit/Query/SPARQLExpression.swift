@@ -5,7 +5,7 @@ import RDFCore
 public indirect enum SPARQLExpression: Hashable, Sendable {
     /// A variable.
     case variable(Variable)
-    /// A term declared in an `@Ontology`, held as its generated type.
+    /// A translated term: an individual or a class of a vocabulary.
     case term(SPARQLTerm)
     /// A resource whose identity is external to the runtime, named by its IRI.
     case iri(IRI)
@@ -21,8 +21,7 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
     case notIn(SPARQLExpression, [SPARQLExpression])
     /// A built-in call such as `STRLEN(?name)` (§17.4).
     case builtIn(SPARQLBuiltInFunction, [SPARQLExpression])
-    /// A call to a function declared in an `@Ontology`, such as the XSD
-    /// cast `XSD.integer.sparql` (§17.5, §17.6).
+    /// A call to a function a translated term names (§17.5, §17.6).
     case function(SPARQLTerm, [SPARQLExpression])
     /// An aggregate over a group (§18.5.1). `COUNT` with no operand is `COUNT(*)`.
     case aggregate(SPARQLAggregate, distinct: Bool, SPARQLExpression?)

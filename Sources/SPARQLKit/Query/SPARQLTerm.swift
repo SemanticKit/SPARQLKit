@@ -1,51 +1,85 @@
 import IRIKit
 import RDFCore
 
-/// A term declared in an `@Ontology`, in a position of a query or update.
+/// A translated term in a position of a query or update.
 ///
-/// The term is held as its generated Swift type: a property
-/// (`Foaf.name.sparql`), the individual type of a class
-/// (`Foaf.PersonIndividual.sparql`), a datatype (`XSD.integer.sparql`) or a
-/// named individual (`SPARQLTerm(Fauna.carnivore)`). Two terms are equal when
-/// they are the same type. The term's IRI is its type's static
-/// ``RDFCore/Entity/metadata``, read only when the term is rendered into
-/// query text.
+/// The term is the Swift the vocabulary was translated into: an individual,
+/// such as the property `FOAF.name` or the format `Formats.Turtle`, or a
+/// class, such as `FOAF.PersonIndividual`. Two terms are equal when they are
+/// the same individual (`===`) or the same class. The IRI that denotes the
+/// term is read only when the term is rendered into query text, the
+/// translation into SPARQL.
 public struct SPARQLTerm: Hashable, Sendable {
-    private let entity: any RDFCore.Entity.Type
-
-    init(entity: any RDFCore.Entity.Type) {
-        self.entity = entity
+    private enum Denotation: Sendable {
+        case individual(any RDFCore.Resource)
+        case `class`(any RDFCore.ResourceClass.Type)
     }
 
-    /// The term a named individual is: the `Individual` declaration its type
-    /// was generated from.
-    public init(_ individual: some RDFCore.Resource) {
-        self.init(entity: type(of: individual))
+    private let denotation: Denotation
+
+    /// The term an individual is.
+    ///
+    /// - Precondition: The individual is denoted by an IRI. A query names a
+    ///   resource only by its IRI; a blank node written into a query is a
+    ///   fresh variable (SPARQL 1.2 Query Language §4.1.4), not the resource.
+    public init(_ individual: any RDFCore.Resource) {
+        precondition(individual.iri != nil, "A blank node has no IRI a query can name it by.")
+        denotation = .individual(individual)
     }
 
-    /// The IRI SPARQL text names the term by. Read only when the term is
-    /// rendered.
-    var iri: IRI {
-        entity.metadata.id
+    /// The term a class is, as the Swift class whose instances are its
+    /// members.
+    ///
+    /// - Precondition: The class is denoted by an IRI.
+    public init(_ class: any RDFCore.ResourceClass.Type) {
+        precondition(`class`.iri != nil, "A blank node has no IRI a query can name it by.")
+        denotation = .class(`class`)
     }
 
-    /// This term in SPARQL text: its IRI as an `IRIREF`.
+    /// This term in SPARQL text: the IRI that denotes it, as an `IRIREF`.
     func render() -> String {
-        iri.render()
+        switch denotation {
+        case .individual(let individual): individual.iri!.render()
+        case .class(let type): type.iri!.render()
+        }
+    }
+
+    /// Whether `iri` denotes this term: how a decoded result term is
+    /// compared with it.
+    func isDenoted(by iri: IRI) -> Bool {
+        switch denotation {
+        case .individual(let individual): individual.iri == iri
+        case .class(let type): type.iri == iri
+        }
     }
 
     public static func == (lhs: SPARQLTerm, rhs: SPARQLTerm) -> Bool {
-        ObjectIdentifier(lhs.entity) == ObjectIdentifier(rhs.entity)
+        lhs.identity == rhs.identity
     }
 
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(ObjectIdentifier(entity))
+        hasher.combine(identity)
+    }
+
+    /// The Swift identity of the term: the object, or the class.
+    private var identity: ObjectIdentifier {
+        switch denotation {
+        case .individual(let individual): ObjectIdentifier(individual)
+        case .class(let type): ObjectIdentifier(type)
+        }
     }
 }
 
-extension RDFCore.Entity {
-    /// This generated term, in a position of a SPARQL query or update.
+extension RDFCore.Resource {
+    /// This individual, in a position of a SPARQL query or update.
+    public var sparql: SPARQLTerm {
+        SPARQLTerm(self)
+    }
+}
+
+extension RDFCore.ResourceClass {
+    /// This class, in a position of a SPARQL query or update.
     public static var sparql: SPARQLTerm {
-        SPARQLTerm(entity: self)
+        SPARQLTerm(self)
     }
 }

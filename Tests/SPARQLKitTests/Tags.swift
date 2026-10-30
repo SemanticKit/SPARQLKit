@@ -9,7 +9,7 @@ extension Tag {
     @Tag static var `protocol`: Self
     /// Manifest-driven conformance cases.
     @Tag static var conformance: Self
-    /// Vocabularies declared with the DSL.
+    /// Vocabularies translated from their published RDF.
     @Tag static var vocabulary: Self
     /// Input that must not change the request it ends up in.
     @Tag static var security: Self

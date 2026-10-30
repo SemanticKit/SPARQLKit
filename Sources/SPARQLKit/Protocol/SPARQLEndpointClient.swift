@@ -5,6 +5,7 @@ import FoundationNetworking
 import IRIKit
 import RDFCore
 import RDFFormats
+import ServiceDescription
 
 /// The dataset and entailment regime a query request asks for
 /// (SPARQL 1.2 Protocol §2.1.4).
@@ -104,7 +105,7 @@ public struct SPARQLEndpointClient: Sendable {
         accept: SPARQLAccept = .jsonResults,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: SPARQLServiceDescription? = nil
+        serviceDescription: (any ServiceDescription.Service)? = nil
     ) async throws -> Data {
         if let serviceDescription, !serviceDescription.supports(accept) {
             throw SPARQLError.invalidRequest("Endpoint service description does not support requested result format.")
@@ -119,7 +120,7 @@ public struct SPARQLEndpointClient: Sendable {
         _ query: SPARQLSelectQuery,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: SPARQLServiceDescription? = nil
+        serviceDescription: (any ServiceDescription.Service)? = nil
     ) async throws -> SPARQLResultSet {
         let data = try await executeQuery(
             query, accept: .jsonResults, method: method, options: options, serviceDescription: serviceDescription
@@ -132,7 +133,7 @@ public struct SPARQLEndpointClient: Sendable {
         _ query: SPARQLAskQuery,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: SPARQLServiceDescription? = nil
+        serviceDescription: (any ServiceDescription.Service)? = nil
     ) async throws -> Bool {
         let data = try await executeQuery(
             query, accept: .jsonResults, method: method, options: options, serviceDescription: serviceDescription
@@ -150,8 +151,8 @@ public struct SPARQLEndpointClient: Sendable {
         accept: SPARQLGraphAccept = .turtle,
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
-        serviceDescription: SPARQLServiceDescription? = nil
-    ) async throws -> Graph {
+        serviceDescription: (any ServiceDescription.Service)? = nil
+    ) async throws -> RDFCore.Graph {
         if let serviceDescription, !serviceDescription.supports(accept) {
             throw SPARQLError.invalidRequest("Endpoint service description does not support requested graph format.")
         }
@@ -193,7 +194,7 @@ public struct SPARQLEndpointClient: Sendable {
         }
     }
 
-    private func check(_ options: SPARQLQueryRequestOptions, against description: SPARQLServiceDescription?) throws {
+    private func check(_ options: SPARQLQueryRequestOptions, against description: (any ServiceDescription.Service)?) throws {
         if let regime = options.requiredEntailmentRegime, let description, !description.supportsEntailment(regime) {
             throw SPARQLError.invalidRequest("Endpoint service description does not support requested entailment regime.")
         }

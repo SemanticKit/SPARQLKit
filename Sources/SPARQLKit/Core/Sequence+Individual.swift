@@ -2,14 +2,25 @@ import IRIKit
 import RDFCore
 
 extension Sequence {
-    /// The declared individual in this sequence that an IRI names: the one
-    /// whose generated type's metadata carries that IRI. This is where a
-    /// decoded IRI becomes the generated term it names.
+    /// The individual in this sequence that an IRI denotes.
     ///
-    ///     let regime = [Entailment.RDFS, Entailment.OWL_Direct].individual(named: iri)
-    public func individual(named iri: IRI) -> Element? {
+    /// In RDF the IRI is the identity; in Swift the individual is. A decoder
+    /// holding an IRI a document carries finds here the translated individual
+    /// that IRI denotes, so what leaves the decoder is the individual itself
+    /// and code compares it with `===`. IRIs are the same IRI when they are
+    /// the same string (RDF 1.2 Concepts §3.2).
+    ///
+    ///     let format = Formats.ontology.compactMap { $0 as? any Formats.Format }.individual(denotedBy: iri)
+    func individual(denotedBy iri: IRI) -> Element? {
+        first { ($0 as? any RDFCore.Resource)?.iri == iri }
+    }
+
+    /// The member of this sequence whose Swift class is the RDF class an IRI
+    /// denotes: how a decoder turns an `rdf:type` IRI into the generated
+    /// class it names.
+    func member(ofClassDenotedBy iri: IRI) -> Element? {
         first { candidate in
-            (candidate as? any RDFCore.Entity).map { type(of: $0).metadata.id == iri } ?? false
+            (candidate as? any RDFCore.ResourceClass).map { type(of: $0).iri == iri } ?? false
         }
     }
 }

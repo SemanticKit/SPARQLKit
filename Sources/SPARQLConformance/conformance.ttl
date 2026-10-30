@@ -1,0 +1,151 @@
+# SPARQLKit's conformance vocabulary: the kinds of case and the expectations
+# SPARQLKit's own manifests add to the W3C test manifest vocabulary
+# (test-manifest.ttl), and the test class the W3C CSV and TSV results suite
+# types its entries with, which test-manifest.ttl does not declare.
+
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
+@prefix sk: <https://codex.local/sparqlkit/conformance#> .
+
+## ---- Test classes ----
+
+sk:DecodeJSONBindingsTest a rdfs:Class ;
+    rdfs:label "Decode JSON bindings test" ;
+    rdfs:comment "A SPARQL Query Results JSON document with bindings." .
+
+sk:DecodeJSONBooleanTest a rdfs:Class ;
+    rdfs:label "Decode JSON boolean test" ;
+    rdfs:comment "A SPARQL Query Results JSON document with a boolean." .
+
+sk:DecodeXMLBindingsTest a rdfs:Class ;
+    rdfs:label "Decode XML bindings test" ;
+    rdfs:comment "A SPARQL Query Results XML document with bindings." .
+
+sk:DecodeXMLBooleanTest a rdfs:Class ;
+    rdfs:label "Decode XML boolean test" ;
+    rdfs:comment "A SPARQL Query Results XML document with a boolean." .
+
+sk:DecodeCSVBindingsTest a rdfs:Class ;
+    rdfs:label "Decode CSV bindings test" ;
+    rdfs:comment "A SPARQL Query Results CSV document." .
+
+sk:DecodeTSVBindingsTest a rdfs:Class ;
+    rdfs:label "Decode TSV bindings test" ;
+    rdfs:comment "A SPARQL Query Results TSV document." .
+
+sk:RenderQueryTest a rdfs:Class ;
+    rdfs:label "Render query test" ;
+    rdfs:comment "A typed query whose rendered SPARQL contains the expected fragments." .
+
+sk:ProtocolGetQueryRequestTest a rdfs:Class ;
+    rdfs:label "Protocol GET query request test" ;
+    rdfs:comment "A SPARQL Protocol query request sent with GET." .
+
+sk:ProtocolPostQueryRequestTest a rdfs:Class ;
+    rdfs:label "Protocol POST query request test" ;
+    rdfs:comment "A SPARQL Protocol query request sent with POST." .
+
+sk:ProtocolGetGraphQueryRequestTest a rdfs:Class ;
+    rdfs:label "Protocol GET graph query request test" ;
+    rdfs:comment "A SPARQL Protocol CONSTRUCT or DESCRIBE request sent with GET, asking for Turtle." .
+
+sk:ProtocolPostGraphQueryRequestTest a rdfs:Class ;
+    rdfs:label "Protocol POST graph query request test" ;
+    rdfs:comment "A SPARQL Protocol CONSTRUCT or DESCRIBE request sent with POST, asking for Turtle." .
+
+sk:ProtocolPostUpdateRequestTest a rdfs:Class ;
+    rdfs:label "Protocol POST update request test" ;
+    rdfs:comment "A SPARQL Protocol update request." .
+
+sk:GraphStoreGetDefaultRequestTest a rdfs:Class ;
+    rdfs:label "Graph Store GET default graph request test" ;
+    rdfs:comment "A Graph Store Protocol GET of the default graph." .
+
+sk:GraphStoreHeadNamedRequestTest a rdfs:Class ;
+    rdfs:label "Graph Store HEAD named graph request test" ;
+    rdfs:comment "A Graph Store Protocol HEAD of a named graph." .
+
+sk:GraphStorePostServiceRequestTest a rdfs:Class ;
+    rdfs:label "Graph Store POST service request test" ;
+    rdfs:comment "A Graph Store Protocol POST to the graph store." .
+
+sk:GraphStorePutNamedRequestTest a rdfs:Class ;
+    rdfs:label "Graph Store PUT named graph request test" ;
+    rdfs:comment "A Graph Store Protocol PUT of a named graph." .
+
+sk:GraphStoreDeleteNamedRequestTest a rdfs:Class ;
+    rdfs:label "Graph Store DELETE named graph request test" ;
+    rdfs:comment "A Graph Store Protocol DELETE of a named graph." .
+
+sk:QueryTemplate a rdfs:Class ;
+    rdfs:label "Query template" ;
+    rdfs:comment "A typed query that SPARQLKit builds and a render case renders." .
+
+sk:BasicSelectQuery a rdfs:Class ;
+    rdfs:subClassOf sk:QueryTemplate ;
+    rdfs:label "Basic SELECT query" ;
+    rdfs:comment "The typed SELECT of ?s and ?o over ?s rdf:value ?o, limited to 5 solutions." .
+
+mf:CSVResultFormatTest a rdfs:Class ;
+    rdfs:label "CSV result format test" ;
+    rdfs:comment "A query whose CSV results are the expected result." .
+
+## ---- Properties ----
+
+sk:queryTemplate a rdf:Property ;
+    rdfs:range sk:QueryTemplate ;
+    rdfs:label "query template" ;
+    rdfs:comment "The typed query a render case renders." .
+
+sk:query a rdf:Property ;
+    rdfs:label "query" ;
+    rdfs:comment "The query a protocol case sends." .
+
+sk:update a rdf:Property ;
+    rdfs:label "update" ;
+    rdfs:comment "The update a protocol case sends." .
+
+sk:defaultGraphURI a rdf:Property ;
+    rdfs:label "default graph URI" ;
+    rdfs:comment "A default graph of the request's dataset." .
+
+sk:namedGraphURI a rdf:Property ;
+    rdfs:label "named graph URI" ;
+    rdfs:comment "A named graph of the request's dataset." .
+
+sk:usingGraphURI a rdf:Property ;
+    rdfs:label "using graph URI" ;
+    rdfs:comment "A default graph of the update's dataset." .
+
+sk:usingNamedGraphURI a rdf:Property ;
+    rdfs:label "using named graph URI" ;
+    rdfs:comment "A named graph of the update's dataset." .
+
+sk:expectVariableCount a rdf:Property ;
+    rdfs:label "expect variable count" ;
+    rdfs:comment "The number of variables the decoded results have." .
+
+sk:expectBindingCount a rdf:Property ;
+    rdfs:label "expect binding count" ;
+    rdfs:comment "The number of solutions the decoded results have." .
+
+sk:expectBoolean a rdf:Property ;
+    rdfs:label "expect boolean" ;
+    rdfs:comment "The boolean the decoded results hold." .
+
+sk:expectContains a rdf:Property ;
+    rdfs:label "expect contains" ;
+    rdfs:comment "A fragment the rendered query contains." .
+
+sk:expectURLContains a rdf:Property ;
+    rdfs:label "expect URL contains" ;
+    rdfs:comment "A fragment the request URL contains." .
+
+sk:expectBodyContains a rdf:Property ;
+    rdfs:label "expect body contains" ;
+    rdfs:comment "A fragment the request body contains." .
+
+sk:expectHeaderContains a rdf:Property ;
+    rdfs:label "expect header contains" ;
+    rdfs:comment "A header and a fragment its value contains, written Header:fragment." .

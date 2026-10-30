@@ -1,6 +1,9 @@
 import Foundation
+import IRIKit
 import RDFCore
+import SPARQLConformance
 import Testing
+import TestManifest
 @testable import SPARQLKit
 
 @Suite("W3C manifests", .tags(.conformance))
@@ -160,7 +163,7 @@ struct SPARQLW3CManifestLoaderTests {
             baseURL: URL(string: "https://example.org/manifests/mf-mapping.ttl")
         )
         #expect(suite.cases.count == 3)
-        #expect(suite.cases[0].test is TestManifest.CSVResultFormatTestIndividual)
+        #expect(suite.cases[0].test is SPARQLConformance.CSVResultFormatTestIndividual)
         #expect(suite.cases[1].test is SPARQLConformance.DecodeXMLBindingsTestIndividual)
         #expect(suite.cases[2].test is SPARQLConformance.DecodeJSONBindingsTestIndividual)
     }
@@ -306,7 +309,7 @@ struct SPARQLW3CManifestLoaderTests {
           mf:action [
             qt:query <query_eval.rq> ;
             qt:data <https://example.org/graphs/default> ;
-            qt:graphData [ qt:graph <https://example.org/graphs/named> ]
+            qt:graphData <https://example.org/graphs/named>
           ] ;
           sk:expectBodyContains "default-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fdefault" ,
                                 "named-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fnamed" .
@@ -406,22 +409,21 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(report.allPassed)
     }
 
-    @Test("Every test class the vocabularies declare decodes into a test SPARQLKit runs", .tags(.vocabulary))
+    @Test("Every test class SPARQLKit declares, and the W3C evaluation tests, decode into a test SPARQLKit runs", .tags(.vocabulary))
     func everyDeclaredTestClassIsRunnable() throws {
-        // The test classes SPARQLConformance and TestManifest declare: the
-        // loader must know each of them, so the vocabulary and the loader
-        // cannot drift.
-        let classes = SPARQLConformance().entities.compactMap { ($0 as? RDFCore.Class)?.localName }
-            .filter { $0.hasSuffix("Test") }
-            .map { ("sk", $0) }
-            + TestManifest().entities.compactMap { ($0 as? RDFCore.Class)?.localName }
-            .filter { $0.hasSuffix("Test") }
-            .map { ("mf", $0) }
-        let entries = classes.map { "<#\($0.1)>" }.joined(separator: " ")
-        let types = classes.map { "<#\($0.1)> a \($0.0):\($0.1) ." }.joined(separator: "\n")
+        // The test classes the translated SPARQLConformance vocabulary
+        // declares: the loader must know each of them, so the vocabulary and
+        // the loader cannot drift. Of test-manifest.ttl's classes, SPARQLKit
+        // runs the evaluation tests; its syntax tests need a SPARQL parser.
+        let classes: [any RDFCore.ResourceClass.Type] = SPARQLConformance.ontology
+            .compactMap { ($0 as? RDFCore.ClassDescription)?.class }
+            .filter { $0.iri?.rawValue.hasSuffix("Test") ?? false }
+            + [TestManifest.QueryEvaluationTestIndividual.self, TestManifest.UpdateEvaluationTestIndividual.self]
+        let iris = classes.compactMap { $0.iri }
+        let entries = iris.indices.map { "<#entry\($0)>" }.joined(separator: " ")
+        let types = iris.enumerated().map { "<#entry\($0.offset)> a <\($0.element.rawValue)> ." }.joined(separator: "\n")
         let turtle = """
         @prefix mf: <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#> .
-        @prefix sk: <https://codex.local/sparqlkit/conformance#> .
 
         <https://example.org/manifests/every-class> a mf:Manifest ;
            mf:entries ( \(entries) ) .
@@ -431,7 +433,11 @@ struct SPARQLW3CManifestLoaderTests {
         let suite = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle, baseURL: URL(string: "https://example.org/manifests/m.ttl"))
 
         #expect(classes.count == 20)
-        #expect(suite.cases.map { type(of: $0.test as any RDFCore.Entity).metadata.name } == classes.map(\.1))
+        let decoded: [IRI?] = suite.cases.map { testCase in
+            let test: any SPARQLConformanceTest = testCase.test
+            return type(of: test).iri
+        }
+        #expect(decoded == iris)
     }
 
     @Test("A render case names its query by the class of its sk:queryTemplate node")

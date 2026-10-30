@@ -5,7 +5,7 @@ public enum SPARQLVerb: Hashable, Sendable {
     case variable(Variable)
     /// `a`, the keyword for `rdf:type` (SPARQL 1.2 Query Language §4.2.4).
     case a
-    /// A property declared in an `@Ontology`, such as `Foaf.name.sparql`.
+    /// A translated property, such as `FOAF.name.sparql`.
     case property(SPARQLTerm)
     /// A property path.
     case path(SPARQLPropertyPath)

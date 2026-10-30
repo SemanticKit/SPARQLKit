@@ -1,6 +1,7 @@
+import FOAF
 import IRIKit
+import RDF
 import RDFCore
-import RDFKit
 import Testing
 @testable import SPARQLKit
 
@@ -10,9 +11,9 @@ struct SPARQLUpdateRenderingTests {
 
     @Test("INSERT DATA and DELETE DATA write ground triples, in a named graph when given one")
     func dataOperationsRender() throws {
-        let triple = SPARQLTriplePattern(alice, .property(Foaf.name.sparql), .literal(try Literal("Alice", languageTag: "en")))
+        let triple = SPARQLTriplePattern(alice, .property(FOAF.name.sparql), .literal(try Literal("Alice", languageTag: "en")))
         let update = try SPARQLUpdateRequest([
-            .insertData([triple, SPARQLTriplePattern(alice, .a, .term(Foaf.PersonIndividual.sparql))]),
+            .insertData([triple, SPARQLTriplePattern(alice, .a, .term(FOAF.PersonIndividual.sparql))]),
             .deleteData([triple], graph: "http://example.org/g")
         ])
 
@@ -32,7 +33,7 @@ struct SPARQLUpdateRenderingTests {
     @Test("INSERT DATA may hold blank nodes")
     func insertDataHoldsBlankNodes() throws {
         let update = try SPARQLUpdateRequest([
-            .insertData([SPARQLTriplePattern(.blankNode(try SPARQLBlankNode("b1")), .property(Foaf.name.sparql), .literal(Literal("x")))])
+            .insertData([SPARQLTriplePattern(.blankNode(try SPARQLBlankNode("b1")), .property(FOAF.name.sparql), .literal(Literal("x")))])
         ])
         #expect(update.render().contains("_:b1 <http://xmlns.com/foaf/0.1/name> \"x\" ."))
     }
@@ -41,9 +42,9 @@ struct SPARQLUpdateRenderingTests {
     func deleteDataRefusesBlankNodes() throws {
         let node = SPARQLPatternTerm.blankNode(try SPARQLBlankNode("b1"))
         #expect(throws: SPARQLError.invalidRequest("DELETE DATA cannot hold a blank node.")) {
-            try SPARQLUpdateRequest([.deleteData([SPARQLTriplePattern(node, .property(Foaf.name.sparql), .iri("http://example.org/o"))])])
+            try SPARQLUpdateRequest([.deleteData([SPARQLTriplePattern(node, .property(FOAF.name.sparql), .iri("http://example.org/o"))])])
         }
-        let nested = SPARQLPatternTerm.tripleTerm(subject: node, predicate: .term(Foaf.name.sparql), object: .iri("http://example.org/o"))
+        let nested = SPARQLPatternTerm.tripleTerm(subject: node, predicate: .term(FOAF.name.sparql), object: .iri("http://example.org/o"))
         #expect(throws: SPARQLError.self) {
             try SPARQLUpdateRequest([.deleteData([SPARQLTriplePattern(alice, .property(RDF.reifies.sparql), nested)])])
         }
@@ -55,9 +56,9 @@ struct SPARQLUpdateRenderingTests {
         #expect(throws: SPARQLError.invalidRequest("A DELETE template cannot hold a blank node.")) {
             try SPARQLUpdateRequest([
                 .modify(
-                    delete: [SPARQLTriplePattern(.variable("s"), .property(Foaf.knows.sparql), node)],
+                    delete: [SPARQLTriplePattern(.variable("s"), .property(FOAF.knows.sparql), node)],
                     insert: [],
-                    where: [.triple(SPARQLTriplePattern(.variable("s"), .property(Foaf.knows.sparql), .variable("o")))]
+                    where: [.triple(SPARQLTriplePattern(.variable("s"), .property(FOAF.knows.sparql), .variable("o")))]
                 )
             ])
         }
@@ -66,13 +67,13 @@ struct SPARQLUpdateRenderingTests {
     @Test("Data operations are ground and templates hold no paths")
     func dataIsGroundAndTemplatesHoldNoPaths() {
         #expect(throws: SPARQLError.invalidRequest("INSERT DATA holds ground triples only, not variables.")) {
-            try SPARQLUpdateRequest([.insertData([SPARQLTriplePattern(.variable("s"), .property(Foaf.name.sparql), .variable("o"))])])
+            try SPARQLUpdateRequest([.insertData([SPARQLTriplePattern(.variable("s"), .property(FOAF.name.sparql), .variable("o"))])])
         }
         #expect(throws: SPARQLError.invalidRequest("An INSERT template cannot hold a property path.")) {
             try SPARQLUpdateRequest([
                 .modify(
                     delete: [],
-                    insert: [SPARQLTriplePattern(.variable("s"), .path(.inverse(.property(Foaf.knows.sparql))), .variable("o"))],
+                    insert: [SPARQLTriplePattern(.variable("s"), .path(.inverse(.property(FOAF.knows.sparql))), .variable("o"))],
                     where: []
                 )
             ])
@@ -84,9 +85,9 @@ struct SPARQLUpdateRenderingTests {
         let update = try SPARQLUpdateRequest([
             .modify(
                 with: "http://example.org/g",
-                delete: [SPARQLTriplePattern(.variable("s"), .property(Foaf.nick.sparql), .variable("o"))],
-                insert: [SPARQLTriplePattern(.variable("s"), .property(Foaf.name.sparql), .variable("o"))],
-                where: [.triple(SPARQLTriplePattern(.variable("s"), .property(Foaf.nick.sparql), .variable("o")))]
+                delete: [SPARQLTriplePattern(.variable("s"), .property(FOAF.nick.sparql), .variable("o"))],
+                insert: [SPARQLTriplePattern(.variable("s"), .property(FOAF.name.sparql), .variable("o"))],
+                where: [.triple(SPARQLTriplePattern(.variable("s"), .property(FOAF.nick.sparql), .variable("o")))]
             )
         ])
 

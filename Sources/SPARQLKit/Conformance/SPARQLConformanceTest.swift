@@ -3,15 +3,18 @@ import Foundation
 import FoundationNetworking
 #endif
 import RDFCore
+import SPARQLConformance
+import TestManifest
 
 /// A kind of conformance test SPARQLKit runs.
 ///
 /// A manifest entry is an individual of a test class: `sk:DecodeJSONBindingsTest`,
-/// `mf:QueryEvaluationTest` and the others that ``SPARQLConformance`` and
-/// ``TestManifest`` declare. Each class's generated individual type conforms
-/// here, so what a test of that class does is behaviour on the type, and the
-/// entry's `rdf:type` is all that says which test runs.
-public protocol SPARQLConformanceTest: RDFCore.Resource, Sendable {
+/// `mf:QueryEvaluationTest` and the others that the translated
+/// `SPARQLConformance` and `TestManifest` vocabularies declare. Each class's
+/// generated Swift class conforms here, so what a test of that class does is
+/// behaviour on the type, and the entry's `rdf:type` is all that says which
+/// test runs.
+public protocol SPARQLConformanceTest: RDFCore.ResourceClass, Sendable {
     /// Runs one case of this test, throwing when the case's expectations do
     /// not hold.
     func run(_ testCase: SPARQLConformanceCase, loadFixture: (String) throws -> Data) throws
@@ -53,7 +56,7 @@ extension SPARQLConformance.DecodeCSVBindingsTestIndividual: SPARQLConformanceTe
 
 /// `mf:CSVResultFormatTest`: a CSV results document (SPARQL 1.2 Query
 /// Results CSV and TSV Formats test suite).
-extension TestManifest.CSVResultFormatTestIndividual: SPARQLConformanceTest {
+extension SPARQLConformance.CSVResultFormatTestIndividual: SPARQLConformanceTest {
     public func run(_ testCase: SPARQLConformanceCase, loadFixture: (String) throws -> Data) throws {
         try testCase.expectBindings(try SPARQLCSVResultDecoder().decode(try testCase.fixtureData(loadFixture)))
     }

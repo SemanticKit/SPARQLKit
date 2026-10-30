@@ -1,6 +1,6 @@
 /// A property path (SPARQL 1.2 Query Language §9).
 public indirect enum SPARQLPropertyPath: Hashable, Sendable {
-    /// A path of length one through a property declared in an `@Ontology`.
+    /// A path of length one through a translated property.
     case property(SPARQLTerm)
     /// `^path`
     case inverse(SPARQLPropertyPath)

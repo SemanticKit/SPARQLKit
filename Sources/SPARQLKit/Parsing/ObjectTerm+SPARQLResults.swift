@@ -2,7 +2,6 @@ import Foundation
 import IRIKit
 import RDFCore
 import RDFFormats
-import RDFKit
 
 /// The terms a SPARQL results document carries.
 ///
@@ -98,15 +97,14 @@ extension ObjectTerm {
             self = .literal(Literal(lexicalForm))
             return
         }
-        let datatypeIRI = try IRI(resultText: datatype)
-        if datatypeIRI == XSD.string.metadata.id {
-            self = .literal(Literal(lexicalForm))
-            return
-        }
-        if datatypeIRI == RDF.langString.metadata.id || datatypeIRI == RDF.dirLangString.metadata.id {
+        // RDF 1.2 Concepts §3.4: `xsd:string` is the datatype of a simple
+        // literal, which ``Literal/init(_:datatype:)`` makes for it, and
+        // `rdf:langString` and `rdf:dirLangString` need a language tag.
+        do {
+            self = .literal(try Literal(lexicalForm, datatype: try IRI(resultText: datatype)))
+        } catch TermError.datatypeRequiresLanguageTag {
             throw SPARQLError.decodingFailure("A language-tagged string needs a language tag.")
         }
-        self = .literal(try Literal(lexicalForm, datatype: datatypeIRI))
     }
 
     /// A triple term from its three decoded components.

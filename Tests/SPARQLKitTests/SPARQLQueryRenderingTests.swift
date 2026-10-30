@@ -1,7 +1,8 @@
+import FOAF
 import IRIKit
+import RDF
 import RDFCore
 import RDFFormats
-import RDFKit
 import Testing
 @testable import SPARQLKit
 
@@ -15,7 +16,7 @@ struct SPARQLQueryRenderingTests {
     func selectRendersSections() {
         let query = SPARQLSelectQuery(
             ["name", .expression(.aggregate(.count, distinct: true, .variable("friend")), as: "count")],
-            where: [pattern("person", Foaf.name.sparql, "name"), pattern("person", Foaf.knows.sparql, "friend")],
+            where: [pattern("person", FOAF.name.sparql, "name"), pattern("person", FOAF.knows.sparql, "friend")],
             groupBy: ["person", "name"],
             limit: 20
         )
@@ -37,13 +38,13 @@ struct SPARQLQueryRenderingTests {
             ["s", "o2", "calc"],
             where: [
                 .triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o"))),
-                .optional([pattern("s", Foaf.nick.sparql, "opt")]),
-                .union([[pattern("s", Foaf.name.sparql, "o1")], [pattern("s", Foaf.knows.sparql, "o2")]]),
-                .minus([pattern("s", Foaf.page.sparql, "x")]),
-                .graph(.iri("http://example.org/graph"), [pattern("s", Foaf.name.sparql, "g")]),
+                .optional([pattern("s", FOAF.nick.sparql, "opt")]),
+                .union([[pattern("s", FOAF.name.sparql, "o1")], [pattern("s", FOAF.knows.sparql, "o2")]]),
+                .minus([pattern("s", FOAF.page.sparql, "x")]),
+                .graph(.iri("http://example.org/graph"), [pattern("s", FOAF.name.sparql, "g")]),
                 .filter(.builtIn(.bound, [.variable("o2")])),
                 .bind(.builtIn(.strlen, [.builtIn(.str, [.variable("o2")])]), as: "calc"),
-                .values(try SPARQLValues(variables: ["s"], rows: [[.iri("http://example.org/a")], [.term(Foaf.PersonIndividual.sparql)]]))
+                .values(try SPARQLValues(variables: ["s"], rows: [[.iri("http://example.org/a")], [.term(FOAF.PersonIndividual.sparql)]]))
             ]
         )
 
@@ -84,14 +85,14 @@ struct SPARQLQueryRenderingTests {
             fromGraphs: ["http://example.org/default"],
             fromNamedGraphs: ["http://example.org/named"],
             where: [
-                pattern("s", Foaf.name.sparql, "o"),
+                pattern("s", FOAF.name.sparql, "o"),
                 .values(try SPARQLValues(
                     variables: ["s", "o"],
                     rows: [[.iri("http://example.org/a"), .literal(Literal("one"))], [nil, .literal(Literal("two"))]]
                 ))
             ],
             groupBy: ["s"],
-            having: [.binary(.aggregate(.count, distinct: false, .variable("o")), .greaterThan, .literal(try Literal("1", datatype: XSD.integer.metadata.id)))],
+            having: [.binary(.aggregate(.count, distinct: false, .variable("o")), .greaterThan, .literal(try Literal("1", datatype: xsdInteger)))],
             orderBy: [SPARQLOrderCondition(.variable("s"), ascending: false)],
             limit: 10,
             offset: 20
@@ -114,7 +115,7 @@ struct SPARQLQueryRenderingTests {
         let inner = SPARQLSelectQuery(
             ["s"],
             fromGraphs: ["http://example.org/ignored"],
-            where: [pattern("s", Foaf.name.sparql, "o")],
+            where: [pattern("s", FOAF.name.sparql, "o")],
             limit: 5
         )
         let outer = SPARQLSelectQuery(["s"], where: [.subquery(inner)])
@@ -135,16 +136,16 @@ struct SPARQLQueryRenderingTests {
 
     @Test("SELECT with no projection is SELECT *")
     func selectStar() {
-        let query = SPARQLSelectQuery(where: [pattern("s", Foaf.name.sparql, "o")])
+        let query = SPARQLSelectQuery(where: [pattern("s", FOAF.name.sparql, "o")])
         #expect(query.render().hasPrefix("SELECT *\nWHERE {"))
         #expect(query.projectedVariables == ["s", "o"])
     }
 
     @Test("Property paths group by precedence")
     func propertyPathsRender() {
-        let p1 = SPARQLPropertyPath.property(Foaf.knows.sparql)
-        let p2 = SPARQLPropertyPath.property(Foaf.name.sparql)
-        let p3 = SPARQLPropertyPath.property(Foaf.page.sparql)
+        let p1 = SPARQLPropertyPath.property(FOAF.knows.sparql)
+        let p2 = SPARQLPropertyPath.property(FOAF.name.sparql)
+        let p3 = SPARQLPropertyPath.property(FOAF.page.sparql)
         let pattern = SPARQLTriplePattern(
             .variable("s"),
             .path(.sequence([.zeroOrMore(.alternative([p1, p2])), .zeroOrOne(.inverse(p3))])),
@@ -154,7 +155,7 @@ struct SPARQLQueryRenderingTests {
 
         let negated = SPARQLTriplePattern(
             .variable("s"),
-            .path(.negated([.property(Foaf.knows.sparql), .inverse(Foaf.name.sparql)])),
+            .path(.negated([.property(FOAF.knows.sparql), .inverse(FOAF.name.sparql)])),
             .variable("o")
         )
         #expect(negated.render() == "?s !(<http://xmlns.com/foaf/0.1/knows>|^<http://xmlns.com/foaf/0.1/name>) ?o .")
@@ -164,27 +165,27 @@ struct SPARQLQueryRenderingTests {
     func expressionsRender() throws {
         let flag = SPARQLExpression.unary(
             .logicalNot,
-            .binary(.builtIn(.bound, [.variable("x")]), .or, .unary(.unaryMinus, .literal(try Literal("2", datatype: XSD.integer.metadata.id))))
+            .binary(.builtIn(.bound, [.variable("x")]), .or, .unary(.unaryMinus, .literal(try Literal("2", datatype: xsdInteger))))
         )
         #expect(flag.render() == #"!((BOUND(?x) || -("2"^^<http://www.w3.org/2001/XMLSchema#integer>)))"#)
 
-        let cast = SPARQLExpression.function(XSD.integer.sparql, [.variable("n")])
-        #expect(cast.render() == "<http://www.w3.org/2001/XMLSchema#integer>(?n)")
+        let call = SPARQLExpression.function(RDF.JSONIndividual.sparql, [.variable("n")])
+        #expect(call.render() == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON>(?n)")
 
-        let membership = SPARQLExpression.notIn(.variable("x"), [.iri("http://example.org/a"), .term(Foaf.PersonIndividual.sparql), .literal(Literal("b"))])
+        let membership = SPARQLExpression.notIn(.variable("x"), [.iri("http://example.org/a"), .term(FOAF.PersonIndividual.sparql), .literal(Literal("b"))])
         #expect(membership.render() == #"(?x NOT IN (<http://example.org/a>, <http://xmlns.com/foaf/0.1/Person>, "b"))"#)
 
         let joined = SPARQLExpression.aggregate(.groupConcat(separator: ", "), distinct: false, .variable("name"))
         #expect(joined.render() == #"GROUP_CONCAT(?name; SEPARATOR=", ")"#)
 
-        let exists = SPARQLExpression.notExists([pattern("x", Foaf.knows.sparql, "y")])
+        let exists = SPARQLExpression.notExists([pattern("x", FOAF.knows.sparql, "y")])
         #expect(exists.render() == "NOT EXISTS { ?x <http://xmlns.com/foaf/0.1/knows> ?y . }")
     }
 
     @Test("Literals render with escapes, language tags, base directions and datatypes")
     func literalsRender() throws {
         #expect(Literal("quote=\" slash=\\ newline=\n").render() == #""quote=\" slash=\\ newline=\n""#)
-        #expect((try Literal("42", datatype: XSD.integer.metadata.id)).render() == #""42"^^<http://www.w3.org/2001/XMLSchema#integer>"#)
+        #expect((try Literal("42", datatype: xsdInteger)).render() == #""42"^^<http://www.w3.org/2001/XMLSchema#integer>"#)
         #expect((try Literal("bonjour", languageTag: "fr")).render() == #""bonjour"@fr"#)
         #expect((try Literal("chat", languageTag: "fr", baseDirection: .ltr)).render() == #""chat"@fr--ltr"#)
         #expect(Literal("café é").render() == "\"café é\"")
@@ -195,7 +196,7 @@ struct SPARQLQueryRenderingTests {
         let pattern = SPARQLTriplePattern(
             .variable("r"),
             .property(RDF.reifies.sparql),
-            .tripleTerm(subject: .variable("s"), predicate: .term(Foaf.name.sparql), object: .literal(Literal("Alice")))
+            .tripleTerm(subject: .variable("s"), predicate: .term(FOAF.name.sparql), object: .literal(Literal("Alice")))
         )
         #expect(pattern.render() == #"?r <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( ?s <http://xmlns.com/foaf/0.1/name> "Alice" )>> ."#)
         #expect(pattern.variables == ["r", "s"])
@@ -203,7 +204,7 @@ struct SPARQLQueryRenderingTests {
 
     @Test("A decoded term becomes the pattern position that matches it")
     func decodedTermBecomesPatternTerm() throws {
-        let term = triple("http://example.org/alice", Foaf.name.metadata.id, try literal("Alice"))
+        let term = triple("http://example.org/alice", FOAF.name.iri!, try literal("Alice"))
         #expect(try SPARQLPatternTerm(term).render() == #"<<( <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice" )>>"#)
     }
 
@@ -211,23 +212,23 @@ struct SPARQLQueryRenderingTests {
     func decodedBlankNodeIsRefused() throws {
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("a b.")) }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("b1")) }
-        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: Foaf.name.metadata.id, object: .iri("http://example.org/o")))
+        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: FOAF.name.iri!, object: .iri("http://example.org/o")))
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(nested) }
     }
 
-    @Test("Declared terms render as their generated type's IRI, and compare by type")
+    @Test("Translated terms render as the IRI that denotes them, and compare by identity")
     func declaredTermsRender() {
-        #expect(SPARQLTriplePattern(.variable("s"), .a, .term(Foaf.PersonIndividual.sparql)).render() == "?s a <http://xmlns.com/foaf/0.1/Person> .")
+        #expect(SPARQLTriplePattern(.variable("s"), .a, .term(FOAF.PersonIndividual.sparql)).render() == "?s a <http://xmlns.com/foaf/0.1/Person> .")
         #expect(SPARQLPatternTerm.term(SPARQLTerm(RDF.nil)).render() == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#nil>")
-        #expect(Foaf.name.sparql == Foaf.name.sparql)
-        #expect(Foaf.name.sparql != Foaf.nick.sparql)
+        #expect(FOAF.name.sparql == FOAF.name.sparql)
+        #expect(FOAF.name.sparql != FOAF.nick.sparql)
         #expect(SPARQLTerm(RDF.nil) == SPARQLTerm(RDF.nil))
     }
 
     @Test("ASK, CONSTRUCT and DESCRIBE render their forms")
     func otherFormsRender() throws {
         let ask = SPARQLAskQuery(where: [
-            pattern("person", Foaf.name.sparql, "name"),
+            pattern("person", FOAF.name.sparql, "name"),
             .filter(.binary(.variable("name"), .equal, .literal(Literal("Alice"))))
         ])
         #expect(ask.render() == """
@@ -239,8 +240,8 @@ struct SPARQLQueryRenderingTests {
             """)
 
         let construct = try SPARQLConstructQuery(
-            [SPARQLTriplePattern(.variable("person"), .property(RDFS.label.sparql), .variable("name"))],
-            where: [pattern("person", Foaf.name.sparql, "name")],
+            [SPARQLTriplePattern(.variable("person"), .property(RDF.label.sparql), .variable("name"))],
+            where: [pattern("person", FOAF.name.sparql, "name")],
             limit: 10
         )
         #expect(construct.render() == """
@@ -277,10 +278,10 @@ struct SPARQLSubqueryScopeTests {
 
     @Test("Projected subquery variables are visible to the outer query")
     func projectedVariablesAreVisible() {
-        let inner = SPARQLSelectQuery(["friend"], where: [pattern("person", Foaf.knows.sparql, "friend")])
+        let inner = SPARQLSelectQuery(["friend"], where: [pattern("person", FOAF.knows.sparql, "friend")])
         let outer = SPARQLSelectQuery(
             ["person", "friend"],
-            where: [pattern("friend", Foaf.name.sparql, "name"), .subquery(inner)]
+            where: [pattern("friend", FOAF.name.sparql, "name"), .subquery(inner)]
         )
         #expect(outer.validateSubqueryScopes().isEmpty)
     }
@@ -288,11 +289,11 @@ struct SPARQLSubqueryScopeTests {
     @Test("An outer FILTER on an unprojected subquery variable is reported")
     func unprojectedVariableIsReported() {
         let inner = SPARQLSelectQuery(["friend"], where: [
-            pattern("person", Foaf.knows.sparql, "friend"),
-            pattern("friend", Foaf.nick.sparql, "hidden")
+            pattern("person", FOAF.knows.sparql, "friend"),
+            pattern("friend", FOAF.nick.sparql, "hidden")
         ])
         let outer = SPARQLSelectQuery(["friend", "label"], where: [
-            pattern("friend", Foaf.name.sparql, "label"),
+            pattern("friend", FOAF.name.sparql, "label"),
             .subquery(inner),
             .filter(.builtIn(.bound, [.variable("hidden")]))
         ])
@@ -303,13 +304,13 @@ struct SPARQLSubqueryScopeTests {
 
     @Test("Leaks from nested subqueries are reported at every level")
     func nestedLeaksAreReported() {
-        let nested = SPARQLSelectQuery(["x"], where: [pattern("x", Foaf.nick.sparql, "nestedOnly")])
+        let nested = SPARQLSelectQuery(["x"], where: [pattern("x", FOAF.nick.sparql, "nestedOnly")])
         let middle = SPARQLSelectQuery(["x"], where: [
             .subquery(nested),
             .filter(.builtIn(.bound, [.variable("nestedOnly")]))
         ])
         let outer = SPARQLSelectQuery(["x", "v"], where: [
-            pattern("x", Foaf.page.sparql, "v"),
+            pattern("x", FOAF.page.sparql, "v"),
             .optional([.subquery(middle)]),
             .filter(.builtIn(.bound, [.variable("nestedOnly")]))
         ])

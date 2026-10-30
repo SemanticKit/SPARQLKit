@@ -1,13 +1,15 @@
+import RDF
 import RDFCore
-import RDFKit
+import SPARQLConformance
 
 /// A typed query a render case renders.
 ///
-/// Each subclass of `sk:QueryTemplate` that ``SPARQLConformance`` declares is
-/// one: its generated individual type conforms here and builds its query, so
+/// Each subclass of `sk:QueryTemplate` that the translated `SPARQLConformance`
+/// vocabulary declares is one: its generated class conforms here and builds
+/// its query, so
 /// a manifest names the query by the class its `sk:queryTemplate` node is
 /// typed with.
-public protocol SPARQLConformanceQueryTemplate: RDFCore.Resource, Sendable {
+public protocol SPARQLConformanceQueryTemplate: RDFCore.ResourceClass, Sendable {
     /// The typed query this template builds.
     var query: any SPARQLQueryRenderable { get }
 }
