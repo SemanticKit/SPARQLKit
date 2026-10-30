@@ -37,41 +37,36 @@ public struct Fixture {
     }
 
     /// The IRIs the fixture states as values of `property`, in IRI order.
-    public func iris(_ property: any RDFCore.Resource) -> [IRI] {
+    public func iris(_ property: any RDFCore.PropertyTerm.Type) -> [IRI] {
         graph.compactMap { $0.predicate == IRI(of: property) ? named($0.object) : nil }.sorted { $0.rawValue < $1.rawValue }
     }
 
     /// The one IRI the fixture states as a value of `property`.
-    public func iri(_ property: any RDFCore.Resource) throws -> IRI {
+    public func iri(_ property: any RDFCore.PropertyTerm.Type) throws -> IRI {
         try Fixture.one(iris(property), "value of \(property)")
     }
 
     /// The one node, named by an IRI, the fixture states has `property`.
-    public func subject(_ property: any RDFCore.Resource) throws -> IRI {
+    public func subject(_ property: any RDFCore.PropertyTerm.Type) throws -> IRI {
         let subjects = Set(graph.compactMap { $0.predicate == IRI(of: property) ? named($0.subject) : nil })
         return try Fixture.one(Array(subjects), "subject of \(property)")
     }
 
     /// The one triple the fixture states with the predicate `property`.
-    public func triple(_ property: any RDFCore.Resource) throws -> RDFCore.Graph.Element {
+    public func triple(_ property: any RDFCore.PropertyTerm.Type) throws -> RDFCore.Graph.Element {
         try Fixture.one(graph.filter { $0.predicate == IRI(of: property) }, "triple of \(property)")
-    }
-
-    /// The one triple the fixture states.
-    public func triple() throws -> RDFCore.Graph.Element {
-        try Fixture.one(Array(graph), "triple")
     }
 
     /// The default graphs the fixture's dataset descriptions state
     /// (`sd:defaultGraph`), in IRI order.
-    public var defaultGraphs: [IRI] { iris(ServiceDescription.defaultGraph) }
+    public var defaultGraphs: [IRI] { iris(ServiceDescription.defaultGraph.self) }
 
     /// The names (`sd:name`) of the named graphs the fixture's dataset
     /// descriptions state (`sd:namedGraph`), in IRI order.
     public var namedGraphs: [IRI] {
-        let graphs = Set(graph.compactMap { $0.predicate == IRI(of: ServiceDescription.namedGraph) ? $0.object.subject : nil })
+        let graphs = Set(graph.compactMap { $0.predicate == IRI(of: ServiceDescription.namedGraph.self) ? $0.object.subject : nil })
         return graph.compactMap { triple in
-            triple.predicate == IRI(of: ServiceDescription.name) && graphs.contains(triple.subject) ? named(triple.object) : nil
+            triple.predicate == IRI(of: ServiceDescription.name.self) && graphs.contains(triple.subject) ? named(triple.object) : nil
         }.sorted { $0.rawValue < $1.rawValue }
     }
 

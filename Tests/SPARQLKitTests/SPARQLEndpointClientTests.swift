@@ -16,17 +16,17 @@ struct SPARQLEndpointClientTests {
     let queryURL = URL(string: "https://example.org/sparql")!
     let updateURL = URL(string: "https://example.org/update")!
     let select = SPARQLSelectQuery(["s"], where: [.triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o")))])
-    /// The subject and object of the example triple.
-    let exampleSubject: IRI
-    let exampleObject: IRI
+    /// Alice, and Bob, whom the example statement says she knows.
+    let alice: IRI
+    let bob: IRI
     let insertData: SPARQLUpdateOperation
 
     init() throws {
-        let example = try Fixture("example_triple.ttl", in: .module).triple()
-        exampleSubject = try #require(example.subjectIRI)
-        exampleObject = try #require(example.objectIRI)
+        let example = try Fixture("example_triple.ttl", in: .module)
+        alice = try example.subject(FOAF.knows.self)
+        bob = try example.iri(FOAF.knows.self)
         insertData = .insertData([
-            SPARQLTriplePattern(.iri(exampleSubject), .property(FOAF.knows.sparql), .iri(exampleObject))
+            SPARQLTriplePattern(.iri(alice), .property(FOAF.knows.sparql), .iri(bob))
         ])
     }
 
@@ -207,14 +207,14 @@ struct SPARQLEndpointClientTests {
 
     @Test("SELECT decodes its bindings")
     func selectDecodes() async throws {
-        let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[{"s":{"type":"uri","value":"http://example.org/s"}}]}}"#)
+        let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[{"s":{"type":"uri","value":"http://example.org/alice"}}]}}"#)
         let result = try await client(session).executeSelect(select)
-        #expect(result.bindings == [["s": iri(exampleSubject)]])
+        #expect(result.bindings == [["s": iri(alice)]])
     }
 
     @Test("CONSTRUCT and DESCRIBE ask for a graph and decode it", arguments: [SPARQLGraphAccept.turtle, .ntriples])
     func graphQueriesDecode(accept: SPARQLGraphAccept) async throws {
-        let session = MockSession(body: "<http://example.org/s> <http://example.org/p> <http://example.org/o> .\n")
+        let session = MockSession(body: "<http://example.org/alice> <http://xmlns.com/foaf/0.1/knows> <http://example.org/bob> .\n")
         let construct = try SPARQLConstructQuery(
             [SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o"))],
             where: select.patterns
@@ -223,9 +223,9 @@ struct SPARQLEndpointClientTests {
         #expect(constructed.count == 1)
         #expect(session.lastRequest?.value(forHTTPHeaderField: "Accept") == accept.rawValue)
 
-        let described = try await client(session).executeGraphQuery(try SPARQLDescribeQuery([.iri(exampleSubject)]), accept: accept)
+        let described = try await client(session).executeGraphQuery(try SPARQLDescribeQuery([.iri(alice)]), accept: accept)
         #expect(described == constructed)
-        #expect(try #require(session.lastRequest).bodyText == "query=DESCRIBE%20%3Chttp%3A%2F%2Fexample.org%2Fs%3E")
+        #expect(try #require(session.lastRequest).bodyText == "query=DESCRIBE%20%3Chttp%3A%2F%2Fexample.org%2Falice%3E")
     }
 
     @Test("Relative IRIs in a returned graph resolve against the request URL")

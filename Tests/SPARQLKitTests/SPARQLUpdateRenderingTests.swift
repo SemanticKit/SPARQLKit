@@ -15,8 +15,8 @@ struct SPARQLUpdateRenderingTests {
 
     init() throws {
         let terms = try Fixture("update_terms.ttl", in: .module)
-        alice = .iri(try terms.subject(FOAF.knows))
-        known = .iri(try terms.iri(FOAF.knows))
+        alice = .iri(try terms.subject(FOAF.knows.self))
+        known = .iri(try terms.iri(FOAF.knows.self))
         graph = try terms.namedGraph()
     }
 
@@ -119,7 +119,7 @@ struct SPARQLUpdateRenderingTests {
     @Test("Graph management operations render their targets")
     func graphManagementRenders() throws {
         let load = try Fixture("graph_load.ttl", in: .module)
-        let source = try load.iri(ServiceDescription.graph)
+        let source = try load.iri(ServiceDescription.graph.self)
         let g = try load.namedGraph()
         let a = try Fixture("graph_copy_source.ttl", in: .module).namedGraph()
         let b = try Fixture("graph_copy_target.ttl", in: .module).namedGraph()

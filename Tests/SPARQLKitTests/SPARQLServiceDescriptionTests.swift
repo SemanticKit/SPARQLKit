@@ -197,8 +197,8 @@ struct SPARQLServiceDescriptionTests {
 
     @Test("A result term decodes into the translated individual it denotes", .tags(.vocabulary))
     func iriDenotesTranslatedIndividual() throws {
-        let declared = try Fixture("entailment_regime_declared.ttl", in: .module).iri(ServiceDescription.defaultEntailmentRegime)
-        let undeclared = try Fixture("entailment_regime_undeclared.ttl", in: .module).iri(ServiceDescription.defaultEntailmentRegime)
+        let declared = try Fixture("entailment_regime_declared.ttl", in: .module).iri(ServiceDescription.defaultEntailmentRegime.self)
+        let undeclared = try Fixture("entailment_regime_undeclared.ttl", in: .module).iri(ServiceDescription.defaultEntailmentRegime.self)
         let binding: Binding = ["regime": .iri(declared), "other": .iri(undeclared)]
         let regimes: [any EntailmentRegimes.Entailment] = [EntailmentRegimes.RDFS, EntailmentRegimes.`OWL-Direct`]
         #expect(binding.individual("regime", among: regimes) === EntailmentRegimes.`OWL-Direct`)

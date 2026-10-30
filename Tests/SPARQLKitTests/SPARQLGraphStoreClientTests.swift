@@ -1,3 +1,4 @@
+import FOAF
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -19,7 +20,7 @@ struct SPARQLGraphStoreClientTests {
     init() throws {
         named = try Fixture("graph_store_named.ttl", in: .module).namedGraph()
         encoded = try Fixture("graph_store_encoded.ttl", in: .module).namedGraph()
-        triple = try Fixture("example_triple.ttl", in: .module).triple()
+        triple = try Fixture("example_triple.ttl", in: .module).triple(FOAF.knows.self)
     }
 
     func client(_ session: MockSession, headers: [String: String] = [:], authentication: EndpointAuthentication? = nil) -> SPARQLGraphStoreClient {
@@ -31,7 +32,7 @@ struct SPARQLGraphStoreClientTests {
 
     @Test("GET of the default graph decodes the graph it returns")
     func getDefaultGraph() async throws {
-        let session = MockSession(body: "<http://example.org/s> <http://example.org/p> <http://example.org/o> .")
+        let session = MockSession(body: "<http://example.org/alice> <http://xmlns.com/foaf/0.1/knows> <http://example.org/bob> .")
         let graph = try await client(
             session,
             headers: ["X-Client": "SPARQLKit"],
@@ -58,7 +59,7 @@ struct SPARQLGraphStoreClientTests {
         #expect(request.httpMethod == "PUT")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/n-triples")
         #expect(request.value(forHTTPHeaderField: "If-None-Match") == "*")
-        #expect(request.bodyText == "<http://example.org/s> <http://example.org/p> <http://example.org/o> .\n")
+        #expect(request.bodyText == "<http://example.org/alice> <http://xmlns.com/foaf/0.1/knows> <http://example.org/bob> .\n")
     }
 
     @Test("A named graph IRI is percent-encoded in the graph parameter, '+' included", .tags(.security))

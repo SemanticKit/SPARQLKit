@@ -1,4 +1,5 @@
-# The plain example triple the protocol tests send and expect back.
+# Alice knows Bob: the statement the protocol tests send and expect back.
 @prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
 
-ex:s ex:p ex:o .
+ex:alice foaf:knows ex:bob .

@@ -17,20 +17,14 @@ struct SPARQLQueryRenderingTests {
     let graphName: IRI
     let dataset: Fixture
     let ignoredGraph: IRI
-    /// The subject and object of the example triple.
-    let exampleSubject: IRI
-    let exampleObject: IRI
 
     init() throws {
         let terms = try Fixture("rendering_terms.ttl", in: .module)
-        alice = try terms.subject(FOAF.knows)
-        known = try terms.iri(FOAF.knows)
+        alice = try terms.subject(FOAF.knows.self)
+        known = try terms.iri(FOAF.knows.self)
         graphName = try terms.namedGraph()
         dataset = try Fixture("rendering_dataset.ttl", in: .module)
-        ignoredGraph = try Fixture("rendering_subquery_dataset.ttl", in: .module).iri(ServiceDescription.defaultGraph)
-        let example = try Fixture("example_triple.ttl", in: .module).triple()
-        exampleSubject = try #require(example.subjectIRI)
-        exampleObject = try #require(example.objectIRI)
+        ignoredGraph = try Fixture("rendering_subquery_dataset.ttl", in: .module).iri(ServiceDescription.defaultGraph.self)
     }
 
     func pattern(_ s: Variable, _ p: SPARQLTerm, _ o: Variable) -> SPARQLPattern {
@@ -229,7 +223,7 @@ struct SPARQLQueryRenderingTests {
 
     @Test("A decoded term becomes the pattern position that matches it")
     func decodedTermBecomesPatternTerm() throws {
-        let term = triple(alice, IRI(of: FOAF.name)!, try literal("Alice"))
+        let term = triple(alice, IRI(of: FOAF.name.self)!, try literal("Alice"))
         #expect(try SPARQLPatternTerm(term).render() == #"<<( <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice" )>>"#)
     }
 
@@ -237,7 +231,7 @@ struct SPARQLQueryRenderingTests {
     func decodedBlankNodeIsRefused() throws {
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("a b.")) }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("b1")) }
-        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name)!, object: .iri(exampleObject)))
+        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name.self)!, object: .iri(known)))
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(nested) }
     }
 

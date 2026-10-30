@@ -34,8 +34,8 @@ struct SPARQLEndpointIntegrationTests {
             updateURL: Environment.updateURL
         ))
         let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? Fixture("update_graph.ttl", in: .module).namedGraph()
-        let removed = try Fixture("update_removed.ttl", in: .module).triple(FOAF.knows)
-        let kept = try Fixture("update_kept.ttl", in: .module).triple(FOAF.knows)
+        let removed = try Fixture("update_removed.ttl", in: .module).triple(FOAF.knows.self)
+        let kept = try Fixture("update_kept.ttl", in: .module).triple(FOAF.knows.self)
         let subject = try #require(kept.subjectIRI)
         let objectA = try #require(removed.objectIRI)
         let objectB = try #require(kept.objectIRI)
@@ -62,7 +62,7 @@ struct SPARQLEndpointIntegrationTests {
     func graphStoreRoundTrip() async throws {
         let client = SPARQLGraphStoreClient(configuration: SPARQLGraphStoreConfiguration(graphStoreURL: try #require(Environment.graphStoreURL)))
         let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? Fixture("graph_store_graph.ttl", in: .module).namedGraph()
-        let triple = try Fixture("graph_store_triple.ttl", in: .module).triple(FOAF.knows)
+        let triple = try Fixture("graph_store_triple.ttl", in: .module).triple(FOAF.knows.self)
 
         _ = try await client.putGraph([triple], graph: .named(graph))
         #expect(try await client.getGraph(.named(graph)).contains(triple))

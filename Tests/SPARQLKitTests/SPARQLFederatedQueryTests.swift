@@ -68,7 +68,7 @@ struct SPARQLFederatedQueryTests {
 
     @Test("A federated SELECT runs like any SELECT and decodes its bindings", .tags(.protocol))
     func federatedSelectExecutes() async throws {
-        let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[{"s":{"type":"uri","value":"http://example.org/s"}}]}}"#)
+        let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[{"s":{"type":"uri","value":"http://example.org/alice"}}]}}"#)
         let client = SPARQLEndpointClient(
             configuration: SPARQLEndpointConfiguration(queryURL: URL(string: "https://example.org/sparql")!),
             session: session
@@ -76,8 +76,8 @@ struct SPARQLFederatedQueryTests {
         let query = SPARQLSelectQuery(["s"], where: [.service(dbpedia, silent: false, [pattern("s", foafName, "name")])])
 
         let result = try await client.executeSelect(query)
-        let example = try Fixture("example_triple.ttl", in: .module).triple()
-        #expect(result.bindings == [["s": .iri(try #require(example.subjectIRI))]])
+        let alice = try Fixture("example_triple.ttl", in: .module).subject(FOAF.knows.self)
+        #expect(result.bindings == [["s": .iri(alice)]])
         #expect(try #require(session.lastRequest).bodyText.contains("SERVICE%20%3Chttp%3A%2F%2Fdbpedia.org%2Fsparql%3E"))
     }
 

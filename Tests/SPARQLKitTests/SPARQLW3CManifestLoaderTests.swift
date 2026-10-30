@@ -327,8 +327,8 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases.count == 1)
         let single = try #require(suite.cases.first)
         #expect(single.fixtureFile == "query_eval.rq")
-        #expect(single.defaultGraphs == [try stated.iri(TestQuery.data)])
-        #expect(single.namedGraphs == [try stated.iri(TestQuery.graphData)])
+        #expect(single.defaultGraphs == [try stated.iri(TestQuery.data.self)])
+        #expect(single.namedGraphs == [try stated.iri(TestQuery.graphData.self)])
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try Fixture.data(fileName, in: .module)
@@ -364,8 +364,8 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases.count == 1)
         let single = try #require(suite.cases.first)
         #expect(single.fixtureFile == "update_eval.ru")
-        #expect(single.usingGraphs == [try stated.iri(TestUpdate.data)])
-        #expect(single.usingNamedGraphs == [try stated.iri(TestUpdate.graph)])
+        #expect(single.usingGraphs == [try stated.iri(TestUpdate.data.self)])
+        #expect(single.usingNamedGraphs == [try stated.iri(TestUpdate.graph.self)])
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
             try Fixture.data(fileName, in: .module)
