@@ -1,5 +1,6 @@
 import Foundation
-import SemanticKit
+import RDFCore
+import RDFFormats
 
 public enum SPARQLQueryResult: Hashable, Sendable {
     case bindings(SPARQLResultSet)
@@ -16,16 +17,21 @@ public struct SPARQLDecodedQueryResult: Hashable, Sendable {
     }
 }
 
+/// Decodes SPARQL 1.2 Query Results JSON documents.
+///
+/// Each term in the document is read by an ``RDFCore/ObjectTerm``
+/// initializer as the document is decoded (SPARQL 1.2 Query Results JSON
+/// Format §3.2.2).
 public struct SPARQLJSONResultDecoder: Sendable {
     public init() {}
 
-    public func decodeQueryResultWithMetadata(
-        _ data: Data,
-        contentType: String? = nil
-    ) throws -> SPARQLDecodedQueryResult {
+    /// Decodes a results document, with the version it announces in its
+    /// `version` member or, failing that, in the `version` parameter of its
+    /// media type.
+    public func decode(_ data: Data, contentType: String?) throws -> SPARQLDecodedQueryResult {
         do {
             let response = try JSONDecoder().decode(JSONResultResponse.self, from: data)
-            let announcedVersion = response.version ?? versionParameter(from: contentType)
+            let announcedVersion = response.version ?? contentType.flatMap { MediaType($0)[parameter: "version"] }
 
             if let boolean = response.boolean {
                 guard response.results == nil else {
@@ -38,10 +44,10 @@ public struct SPARQLJSONResultDecoder: Sendable {
                 throw SPARQLError.decodingFailure("Missing head/results in JSON bindings payload.")
             }
 
-            let variables = head.vars.map(Variable.init(rawValue:))
+            let variables = try (head.vars ?? []).map(Variable.init(resultName:))
             let bindings = try results.bindings.map { row in
                 try row.reduce(into: Binding()) { partial, entry in
-                    partial[Variable(rawValue: entry.key)] = try entry.value.asTerm
+                    partial[try Variable(resultName: entry.key)] = try ObjectTerm(entry.value)
                 }
             }
             let resultSet = SPARQLResultSet(variables: variables, bindings: bindings, version: announcedVersion)
@@ -53,13 +59,18 @@ public struct SPARQLJSONResultDecoder: Sendable {
         }
     }
 
-    public func decodeQueryResult(_ data: Data) throws -> SPARQLQueryResult {
-        try decodeQueryResultWithMetadata(data).result
+    /// Decodes a results document: the solutions of a `SELECT` query or the
+    /// answer to an `ASK` query.
+    public func decode(_ data: Data) throws -> SPARQLQueryResult {
+        try decode(data, contentType: nil).result
     }
 
+    /// Decodes the solutions of a `SELECT` query.
+    ///
+    /// - Throws: ``SPARQLError/decodingFailure(_:)`` when the document is
+    ///   the answer to an `ASK` query.
     public func decode(_ data: Data) throws -> SPARQLResultSet {
-        let queryResult = try decodeQueryResult(data)
-        switch queryResult {
+        switch try decode(data) as SPARQLQueryResult {
         case let .bindings(resultSet):
             return resultSet
         case .boolean:
@@ -68,39 +79,11 @@ public struct SPARQLJSONResultDecoder: Sendable {
     }
 }
 
-private extension SPARQLJSONResultDecoder {
-    func versionParameter(from contentType: String?) -> String? {
-        guard let contentType else {
-            return nil
-        }
-
-        let parameters = contentType.split(separator: ";").dropFirst()
-        for parameter in parameters {
-            let keyValue = parameter.split(separator: "=", maxSplits: 1)
-            guard keyValue.count == 2 else {
-                continue
-            }
-            let key = keyValue[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            guard key == "version" else {
-                continue
-            }
-            var value = keyValue[1].trimmingCharacters(in: .whitespacesAndNewlines)
-            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
-                value.removeFirst()
-                value.removeLast()
-            }
-            if !value.isEmpty {
-                return value
-            }
-        }
-
-        return nil
-    }
-}
-
 private struct JSONResultResponse: Decodable {
+    /// The head of a results document. An `ASK` result's head has no
+    /// `vars` (SPARQL 1.2 Query Results JSON Format §3.1).
     struct Head: Decodable {
-        let vars: [String]
+        let vars: [String]?
     }
 
     struct Results: Decodable {
@@ -127,50 +110,36 @@ private final class JSONBindingValue: Decodable {
         case language = "xml:lang"
         case direction = "its:dir"
     }
+}
 
-    var asTerm: RDFTerm {
-        get throws {
-            switch type {
-            case "uri":
-                guard case let .string(value) = value else {
-                    throw SPARQLError.decodingFailure("IRI term value must be a string.")
-                }
-                return try .iri(value)
-            case "bnode":
-                guard case let .string(value) = value else {
-                    throw SPARQLError.decodingFailure("Blank node value must be a string.")
-                }
-                return try .blankNode(value)
-            case "triple":
-                guard case let .triple(tripleValue) = value else {
-                    throw SPARQLError.decodingFailure("Triple term value must be an object.")
-                }
-                let subjectTerm = try tripleValue.subject.asTerm
-                let predicateTerm = try tripleValue.predicate.asTerm
-                let objectTerm = try tripleValue.object.asTerm
-
-                guard let subjectNode = subjectTerm.node as? any SemanticKit.RDFSubject else {
-                    throw SPARQLError.decodingFailure("Triple subject must be IRI or blank node.")
-                }
-                let predicateIRI: IRI
-                if let iri = predicateTerm.node as? IRI {
-                    predicateIRI = iri
-                } else {
-                    throw SPARQLError.decodingFailure("Triple predicate must be an IRI.")
-                }
-                let triple = RDFTripleTerm(
-                    subject: try RDFSubject(subjectNode),
-                    predicate: predicateIRI,
-                    object: RDFTerm(objectTerm.node)
-                )
-                return RDFTerm(triple)
-            default:
-                guard case let .string(value) = value else {
-                    throw SPARQLError.decodingFailure("Literal term value must be a string.")
-                }
-                let textDirection = direction.flatMap { TextDirection(rawValue: $0.lowercased()) }
-                return try .literal(value, datatype: datatype, language: language, direction: textDirection)
-            }
+extension ObjectTerm {
+    /// A term in a JSON results document: an object whose `type` says which
+    /// kind of term it is (SPARQL 1.2 Query Results JSON Format §3.2.2).
+    fileprivate init(_ value: JSONBindingValue) throws {
+        switch (value.type, value.value) {
+        case ("uri", .string(let text)):
+            try self.init(iri: text)
+        case ("bnode", .string(let label)):
+            try self.init(blankNode: label)
+        case ("triple", .triple(let triple)):
+            try self.init(
+                tripleTermSubject: try ObjectTerm(triple.subject),
+                predicate: try ObjectTerm(triple.predicate),
+                object: try ObjectTerm(triple.object)
+            )
+        case ("literal", .string(let lexicalForm)):
+            try self.init(
+                literal: lexicalForm,
+                datatype: value.datatype,
+                language: value.language,
+                direction: value.direction
+            )
+        case ("triple", _):
+            throw SPARQLError.decodingFailure("A triple term value must be an object.")
+        case ("uri", _), ("bnode", _), ("literal", _):
+            throw SPARQLError.decodingFailure("A \(value.type) value must be a string.")
+        default:
+            throw SPARQLError.decodingFailure("'\(value.type)' is not a term type.")
         }
     }
 }

@@ -1,31 +1,62 @@
 import Foundation
+import IRIKit
+import RDFCore
+import RDFFormats
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
-@Test
-func graphResultDecoderParsesTurtleGraph() throws {
-    let fixtureURL = try #require(Bundle.module.url(forResource: "construct_result_turtle", withExtension: "ttl"))
-    let data = try Data(contentsOf: fixtureURL)
+@Suite("Graph results decode with RDFFormats", .tags(.decoding))
+struct SPARQLGraphResultDecoderTests {
+    let knows: IRI = "http://example.org/knows"
 
-    let graph = try SPARQLGraphResultDecoder().decodeTurtle(data)
+    @Test("A Turtle graph decodes into its set of triples")
+    func decodesTurtle() throws {
+        let graph = try SPARQLGraphResultDecoder().decode(try Fixture.data("construct_result_turtle.ttl", in: .module), as: .turtle)
 
-    #expect(graph.triples.count == 2)
-}
+        #expect(graph == [
+            Graph.Element(subject: .iri("http://example.org/alice"), predicate: knows, object: .iri("http://example.org/bob")),
+            Graph.Element(subject: .iri("http://example.org/bob"), predicate: knows, object: .iri("http://example.org/charlie"))
+        ])
+    }
 
-@Test
-func graphResultDecoderRejectsInvalidPayload() {
-    let invalid = Data("this is not turtle <<".utf8)
+    @Test("Relative references resolve against the base")
+    func resolvesAgainstBase() throws {
+        let graph = try SPARQLGraphResultDecoder().decode(
+            Data("<a> <knows> <b> .".utf8),
+            as: .turtle,
+            base: "http://example.org/"
+        )
+        #expect(graph == [Graph.Element(subject: .iri("http://example.org/a"), predicate: knows, object: .iri("http://example.org/b"))])
+    }
 
-    do {
-        _ = try SPARQLGraphResultDecoder().decodeTurtle(invalid)
-        Issue.record("Expected invalid Turtle graph payload to fail decoding.")
-    } catch let error as SPARQLError {
-        if case .decodingFailure = error {
-            #expect(Bool(true))
-        } else {
-            Issue.record("Expected decodingFailure but got: \(error)")
+    @Test("An N-Triples graph decodes")
+    func decodesNTriples() throws {
+        let graph = try SPARQLGraphResultDecoder().decode(
+            Data("<http://example.org/a> <http://example.org/knows> <http://example.org/b> .\n".utf8),
+            as: .ntriples
+        )
+        #expect(graph.count == 1)
+    }
+
+    @Test("A document that is not Turtle is rejected")
+    func rejectsInvalidTurtle() {
+        #expect(throws: SPARQLError.self) {
+            _ = try SPARQLGraphResultDecoder().decode(Data("this is not turtle <<".utf8), as: .turtle)
         }
-    } catch {
-        Issue.record("Unexpected non-SPARQLError: \(error)")
+    }
+
+    @Test("Clients ask only for graph formats RDFFormats decodes")
+    func offersOnlyDecodableFormats() throws {
+        #expect(SPARQLGraphAccept.allCases == [.turtle, .ntriples])
+        #expect(SPARQLGraphAccept(rawValue: "application/rdf+xml") == nil)
+        #expect(SPARQLGraphAccept(rawValue: "application/ld+json") == nil)
+        for accept in SPARQLGraphAccept.allCases {
+            let graph = try SPARQLGraphResultDecoder().decode(
+                Data("<http://example.org/a> <http://example.org/knows> <http://example.org/b> .\n".utf8),
+                as: accept
+            )
+            #expect(graph.count == 1)
+        }
     }
 }

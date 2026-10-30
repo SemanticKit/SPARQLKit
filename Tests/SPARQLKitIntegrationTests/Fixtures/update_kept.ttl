@@ -1,0 +1,5 @@
+# The triple the update round trip inserts and keeps.
+@prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+<http://example.org/sparqlkit/integration/sequence> foaf:knows ex:oB .

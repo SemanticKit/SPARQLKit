@@ -1,218 +1,130 @@
 import Foundation
+import SPARQLConformance
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
-@Test
-func conformanceRunnerExecutesSmokeSuiteFromFixture() throws {
-    let fixtureData = try loadFixture(named: "conformance_smoke_suite", ext: "json")
-    let suite = try SPARQLConformanceSuite.decode(from: fixtureData)
+@Suite("Conformance runner", .tags(.conformance))
+struct SPARQLConformanceHarnessTests {
     let runner = SPARQLConformanceRunner()
 
-    let report = runner.run(suite: suite) { fileName in
-        try loadFixtureFile(fileName)
+    @Test("The smoke suite passes")
+    func smokeSuitePasses() throws {
+        let suite = try SPARQLW3CManifestLoader().loadSuite(
+            from: try Fixture.data("conformance_smoke_suite.ttl", in: .module),
+            baseURL: URL(string: "https://example.org/manifests/conformance_smoke_suite.ttl")
+        )
+        let report = runner.run(suite: suite, loadFixture: { try Fixture.data($0, in: .module) })
+
+        #expect(report.results.count == 5)
+        #expect(report.allPassed)
     }
 
-    #expect(report.results.count == 5)
-    #expect(report.allPassed)
-    #expect(report.failedCount == 0)
-}
+    @Test("A failing case is reported")
+    func failingCaseIsReported() {
+        let suite = SPARQLConformanceSuite(name: "failing", cases: [
+            SPARQLConformanceCase(id: "bad-count", test: SPARQLConformance.DecodeJSONBindingsTestIndividual(), fixtureFile: "select_result.json", expectBindingCount: 999)
+        ])
+        let report = runner.run(suite: suite, loadFixture: { try Fixture.data($0, in: .module) })
 
-@Test
-func conformanceRunnerReportsCaseFailures() throws {
-    let suite = SPARQLConformanceSuite(
-        name: "failing suite",
-        cases: [
-            SPARQLConformanceCase(
-                id: "bad-count",
-                operation: .decodeJSONBindings,
-                fixtureFile: "select_result.json",
-                expectBindingCount: 999
-            )
-        ]
-    )
-
-    let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-        try loadFixtureFile(fileName)
+        #expect(!report.allPassed)
+        #expect(report.failedCount == 1)
+        #expect(report.results.first?.passed == false)
     }
 
-    #expect(report.results.count == 1)
-    #expect(!report.allPassed)
-    #expect(report.failedCount == 1)
-    #expect(report.results.first?.passed == false)
-}
+    @Test("An expected failure that fails is XFAIL")
+    func expectedFailureIsXFail() {
+        let suite = SPARQLConformanceSuite(name: "xfail", cases: [
+            SPARQLConformanceCase(id: "known-failure", test: SPARQLConformance.DecodeJSONBindingsTestIndividual(), fixtureFile: "select_result.json", expectBindingCount: 999)
+        ])
+        let report = runner.run(suite: suite, expectedFailures: ["known-failure"], loadFixture: { try Fixture.data($0, in: .module) })
 
-@Test
-func conformanceRunnerMarksExpectedFailuresAsXFail() throws {
-    let suite = SPARQLConformanceSuite(
-        name: "xfail suite",
-        cases: [
-            SPARQLConformanceCase(
-                id: "known-failure",
-                operation: .decodeJSONBindings,
-                fixtureFile: "select_result.json",
-                expectBindingCount: 999
-            )
-        ]
-    )
-
-    let report = SPARQLConformanceRunner().run(
-        suite: suite,
-        expectedFailures: ["known-failure"]
-    ) { fileName in
-        try loadFixtureFile(fileName)
+        #expect(report.allPassed)
+        #expect(report.expectedFailureCount == 1)
+        #expect(report.results.first?.expectedFailure == true)
     }
 
-    #expect(report.results.count == 1)
-    #expect(report.allPassed)
-    #expect(report.failedCount == 0)
-    #expect(report.expectedFailureCount == 1)
-    #expect(report.results.first?.expectedFailure == true)
-}
+    @Test("An expected failure that passes is XPASS, which fails the run")
+    func unexpectedPassIsXPass() {
+        let suite = SPARQLConformanceSuite(name: "xpass", cases: [
+            SPARQLConformanceCase(id: "was-expected-to-fail", test: SPARQLConformance.DecodeJSONBindingsTestIndividual(), fixtureFile: "select_result.json", expectBindingCount: 3)
+        ])
+        let report = runner.run(suite: suite, expectedFailures: ["was-expected-to-fail"], loadFixture: { try Fixture.data($0, in: .module) })
 
-@Test
-func conformanceRunnerMarksUnexpectedPassAsXPass() throws {
-    let suite = SPARQLConformanceSuite(
-        name: "xpass suite",
-        cases: [
-            SPARQLConformanceCase(
-                id: "was-expected-to-fail",
-                operation: .decodeJSONBindings,
-                fixtureFile: "select_result.json",
-                expectBindingCount: 3
-            )
-        ]
-    )
-
-    let report = SPARQLConformanceRunner().run(
-        suite: suite,
-        expectedFailures: ["was-expected-to-fail"]
-    ) { fileName in
-        try loadFixtureFile(fileName)
+        #expect(!report.allPassed)
+        #expect(report.failedCount == 1)
+        #expect(report.expectedFailureCount == 0)
+        #expect(report.results.first?.message?.hasPrefix("XPASS") == true)
     }
 
-    #expect(report.results.count == 1)
-    #expect(!report.allPassed)
-    #expect(report.failedCount == 1)
-    #expect(report.expectedFailureCount == 0)
-    #expect(report.results.first?.passed == false)
-    #expect(report.results.first?.expectedFailure == false)
-}
-
-@Test
-func conformanceRunnerBuildsGraphQueryProtocolRequests() throws {
-    let suite = SPARQLConformanceSuite(
-        name: "graph protocol suite",
-        cases: [
+    @Test("Graph query cases ask for Turtle and carry their dataset")
+    func graphQueryCases() throws {
+        let suite = SPARQLConformanceSuite(name: "graph protocol", cases: [
             SPARQLConformanceCase(
                 id: "graph-get",
-                operation: .buildGETGraphQueryRequest,
+                test: SPARQLConformance.ProtocolGetGraphQueryRequestTestIndividual(),
                 queryText: "CONSTRUCT { ?s ?p ?o . } WHERE { ?s ?p ?o . } LIMIT 1",
-                expectURLContains: ["query=CONSTRUCT", "default-graph-uri=https://example.org/graph/default"]
+                defaultGraphs: try Fixture("endpoint_dataset.ttl", in: .module).defaultGraphs,
+                expectURLContains: ["query=CONSTRUCT", "default-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fdefault"],
+                expectHeaderContains: ["Accept:text/turtle"]
             ),
             SPARQLConformanceCase(
                 id: "graph-post",
-                operation: .buildPOSTGraphQueryRequest,
+                test: SPARQLConformance.ProtocolPostGraphQueryRequestTestIndividual(),
                 queryText: "DESCRIBE <http://example.org/s>",
-                namedGraphURIs: ["https://example.org/graph/named"],
-                expectBodyContains: ["query=DESCRIBE%20%3Chttp%3A%2F%2Fexample.org%2Fs%3E", "named-graph-uri=https%3A%2F%2Fexample.org%2Fgraph%2Fnamed"]
-            )
-        ]
-    )
-
-    let adjustedCases = [
-        SPARQLConformanceCase(
-            id: suite.cases[0].id,
-            operation: suite.cases[0].operation,
-            queryText: suite.cases[0].queryText,
-            defaultGraphURIs: ["https://example.org/graph/default"],
-            expectURLContains: suite.cases[0].expectURLContains
-        ),
-        suite.cases[1]
-    ]
-    let adjustedSuite = SPARQLConformanceSuite(name: suite.name, cases: adjustedCases)
-
-    let report = SPARQLConformanceRunner().run(suite: adjustedSuite) { fileName in
-        try loadFixtureFile(fileName)
-    }
-
-    #expect(report.results.count == 2)
-    #expect(report.allPassed)
-}
-
-@Test
-func conformanceRunnerAutoUsesGraphAcceptForConstructInGenericQueryOperation() throws {
-    let suite = SPARQLConformanceSuite(
-        name: "generic query graph accept",
-        cases: [
-            SPARQLConformanceCase(
-                id: "construct-over-generic-query-op",
-                operation: .buildPOSTQueryRequest,
-                queryText: "CONSTRUCT { ?s ?p ?o . } WHERE { ?s ?p ?o . }",
-                expectHeaderContains: ["Accept:text/turtle"]
-            )
-        ]
-    )
-
-    let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-        try loadFixtureFile(fileName)
-    }
-    #expect(report.results.count == 1)
-    #expect(report.allPassed)
-}
-
-@Test
-func conformanceRunnerBuildsGraphStoreProtocolRequests() throws {
-    let suite = SPARQLConformanceSuite(
-        name: "graph store protocol suite",
-        cases: [
-            SPARQLConformanceCase(
-                id: "gsp-get-default",
-                operation: .buildGETDefaultGraphStoreRequest,
-                expectURLContains: ["default"],
-                expectBodyContains: []
+                namedGraphs: try Fixture("endpoint_encoded_dataset.ttl", in: .module).namedGraphs,
+                expectBodyContains: ["query=DESCRIBE%20%3Chttp%3A%2F%2Fexample.org%2Fs%3E", "named-graph-uri=https%3A%2F%2Fexample.org%2Fnamed%23frag"]
             ),
+            SPARQLConformanceCase(
+                id: "construct-after-one-line-prologue",
+                test: SPARQLConformance.ProtocolPostGraphQueryRequestTestIndividual(),
+                queryText: "PREFIX ex: <http://example.org/> CONSTRUCT { ?s ex:p ?o } WHERE { ?s ex:p ?o }",
+                expectHeaderContains: ["Accept:text/turtle"]
+            ),
+            SPARQLConformanceCase(
+                id: "results-query",
+                test: SPARQLConformance.ProtocolPostQueryRequestTestIndividual(),
+                queryText: "PREFIX ex: <http://example.org/> SELECT * WHERE { ?s ex:p ?o }",
+                expectHeaderContains: ["Accept:application/sparql-results+json"]
+            )
+        ])
+        let report = runner.run(suite: suite, loadFixture: { try Fixture.data($0, in: .module) })
+
+        #expect(report.results.count == 4)
+        #expect(report.allPassed, "\(report.results.compactMap(\.message))")
+    }
+
+    @Test("Graph Store cases build their requests")
+    func graphStoreCases() throws {
+        let named = try Fixture("graph_store_named.ttl", in: .module).namedGraphs
+        let encoded = try Fixture("graph_store_encoded.ttl", in: .module).namedGraphs
+        let body = "<http://example.org/s> <http://example.org/p> <http://example.org/o> ."
+        let suite = SPARQLConformanceSuite(name: "graph store protocol", cases: [
+            SPARQLConformanceCase(id: "gsp-get-default", test: SPARQLConformance.GraphStoreGetDefaultRequestTestIndividual(), expectURLContains: ["default"]),
             SPARQLConformanceCase(
                 id: "gsp-head-named",
-                operation: .buildHEADNamedGraphStoreRequest,
-                namedGraphURIs: ["https://example.org/graphs/named"],
-                expectURLContains: ["graph=https://example.org/graphs/named"]
+                test: SPARQLConformance.GraphStoreHeadNamedRequestTestIndividual(),
+                namedGraphs: named,
+                expectURLContains: ["graph=https%3A%2F%2Fexample.org%2Fg"]
             ),
-            SPARQLConformanceCase(
-                id: "gsp-post-service",
-                operation: .buildPOSTServiceGraphStoreRequest,
-                expectBodyContains: ["<s> <p> <o> ."]
-            ),
+            SPARQLConformanceCase(id: "gsp-post-service", test: SPARQLConformance.GraphStorePostServiceRequestTestIndividual(), expectBodyContains: [body]),
             SPARQLConformanceCase(
                 id: "gsp-put-named",
-                operation: .buildPUTNamedGraphStoreRequest,
-                namedGraphURIs: ["https://example.org/graphs/named-put"],
-                expectURLContains: ["graph=https://example.org/graphs/named-put"],
-                expectBodyContains: ["<s> <p> <o> ."]
+                test: SPARQLConformance.GraphStorePutNamedRequestTestIndividual(),
+                namedGraphs: encoded,
+                expectURLContains: ["graph=https%3A%2F%2Fexample.org%2Fg%3Fa%3D1%26b%3Dc%2Bd"],
+                expectBodyContains: [body]
             ),
             SPARQLConformanceCase(
                 id: "gsp-delete-named",
-                operation: .buildDELETENamedGraphStoreRequest,
-                namedGraphURIs: ["https://example.org/graphs/named-delete"],
-                expectURLContains: ["graph=https://example.org/graphs/named-delete"]
+                test: SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual(),
+                namedGraphs: named,
+                expectURLContains: ["graph=https%3A%2F%2Fexample.org%2Fg"]
             )
-        ]
-    )
+        ])
+        let report = runner.run(suite: suite, loadFixture: { try Fixture.data($0, in: .module) })
 
-    let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-        try loadFixtureFile(fileName)
+        #expect(report.results.count == 5)
+        #expect(report.allPassed, "\(report.results.compactMap(\.message))")
     }
-
-    #expect(report.results.count == 5)
-    #expect(report.allPassed)
-}
-
-private func loadFixtureFile(_ fileName: String) throws -> Data {
-    let stem = URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent
-    let ext = URL(fileURLWithPath: fileName).pathExtension
-    return try loadFixture(named: stem, ext: ext)
-}
-
-private func loadFixture(named name: String, ext: String) throws -> Data {
-    let fixtureURL = try #require(Bundle.module.url(forResource: name, withExtension: ext))
-    return try Data(contentsOf: fixtureURL)
 }

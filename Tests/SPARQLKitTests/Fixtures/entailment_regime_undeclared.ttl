@@ -1,0 +1,6 @@
+# A service naming an entailment regime the entailment vocabulary does not
+# declare.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix ent: <http://www.w3.org/ns/entailment/> .
+
+<https://example.org/sparql> a sd:Service ; sd:defaultEntailmentRegime ent:Unknown .

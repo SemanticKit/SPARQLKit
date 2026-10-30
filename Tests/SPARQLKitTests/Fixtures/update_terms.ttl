@@ -1,0 +1,8 @@
+# Terms the update rendering tests write: Alice, whom she knows, and the
+# named graph the updates write to.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+ex:alice foaf:knows ex:o .
+[] a sd:GraphCollection ; sd:namedGraph [ sd:name ex:g ] .

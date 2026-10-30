@@ -1,0 +1,5 @@
+# The named graph the Graph Store round trip puts when SPARQL_TEST_GRAPH_IRI
+# is unset.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+
+[] a sd:GraphCollection ; sd:namedGraph [ sd:name <http://example.org/sparqlkit/graphstore> ] .

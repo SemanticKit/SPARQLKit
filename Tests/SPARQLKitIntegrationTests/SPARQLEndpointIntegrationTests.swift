@@ -1,65 +1,145 @@
+import EntailmentRegimes
+import FOAF
+import Formats
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+import IRIKit
+import RDFCore
+import RDFFormats
+import ServiceDescription
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
-@Test
-func endpointQueryRoundTripWhenConfigured() async throws {
-    guard let endpoint = ProcessInfo.processInfo.environment["SPARQL_ENDPOINT_URL"],
-          let endpointURL = URL(string: endpoint)
-    else {
-        return
+@Suite("Live SPARQL endpoint", .tags(.liveEndpoint))
+struct SPARQLEndpointIntegrationTests {
+
+    func anyTriple() -> SPARQLPattern {
+        .triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o")))
     }
 
-    let client = SPARQLEndpointClient(
-        configuration: SPARQLEndpointConfiguration(queryURL: endpointURL)
-    )
-
-    let query = SPARQLSelectQuery(
-        variables: [Variable(rawValue: "s")],
-        wherePatterns: ["?s ?p ?o ."],
-        limit: 1
-    )
-
-    let data = try await client.executeQuery(query, accept: .jsonResults)
-    let decoded = try SPARQLJSONResultDecoder().decode(data)
-
-    #expect(decoded.variables.contains(Variable(rawValue: "s")))
-}
-
-@Test
-func endpointQueryPrintResponsesWhenConfigured() async throws {
-    guard let endpoint = ProcessInfo.processInfo.environment["SPARQL_ENDPOINT_URL"],
-          let endpointURL = URL(string: endpoint)
-    else {
-        return
+    @Test("A SELECT round-trips", .enabled(if: Environment.queryURL != nil))
+    func selectRoundTrip() async throws {
+        let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(queryURL: try #require(Environment.queryURL)))
+        let result = try await client.executeSelect(SPARQLSelectQuery(["s"], where: [anyTriple()], limit: 1))
+        #expect(result.variables.contains("s"))
     }
 
-    let client = SPARQLEndpointClient(
-        configuration: SPARQLEndpointConfiguration(queryURL: endpointURL)
-    )
+    @Test("Inserted data can be queried back", .enabled(if: Environment.queryURL != nil && Environment.updateURL != nil))
+    func updateRoundTrip() async throws {
+        let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(
+            queryURL: try #require(Environment.queryURL),
+            updateURL: Environment.updateURL
+        ))
+        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? Fixture("update_graph.ttl", in: .module).namedGraph()
+        let removed = try Fixture("update_removed.ttl", in: .module).triple(FOAF.knows.self)
+        let kept = try Fixture("update_kept.ttl", in: .module).triple(FOAF.knows.self)
+        let subject = try #require(kept.subjectIRI)
+        let objectA = try #require(removed.objectIRI)
+        let objectB = try #require(kept.objectIRI)
+        func triple(_ object: IRI) -> SPARQLTriplePattern {
+            SPARQLTriplePattern(.iri(subject), .property(FOAF.knows.sparql), .iri(object))
+        }
 
-    let query = SPARQLSelectQuery(
-        variables: [Variable(rawValue: "s"), Variable(rawValue: "p"), Variable(rawValue: "o")],
-        wherePatterns: ["?s ?p ?o ."],
-        limit: 5
-    )
+        _ = try await client.executeUpdate(try SPARQLUpdateRequest([
+            .clear(.named(graph), silent: true),
+            .insertData([triple(objectA)], graph: graph),
+            .deleteData([triple(objectA)], graph: graph),
+            .insertData([triple(objectB)], graph: graph)
+        ]))
 
-    let data = try await client.executeQuery(query, accept: .jsonResults)
-    let raw = String(data: data, encoding: .utf8) ?? "<non-utf8 response>"
-    print("SPARQL endpoint:", endpoint)
-    print("SPARQL query:", query.render())
-    print("Raw JSON response:")
-    print(raw)
-
-    let decoded = try SPARQLJSONResultDecoder().decode(data)
-    print("Decoded variables:", decoded.variables.map(\.rawValue).joined(separator: ", "))
-    print("Decoded binding count:", decoded.bindings.count)
-    for (index, binding) in decoded.bindings.enumerated() {
-        let parts = binding.map { key, value in
-            "\(key.rawValue)=\(value)"
-        }.sorted()
-        print("Binding \(index + 1):", parts.joined(separator: ", "))
+        let result = try await client.executeSelect(SPARQLSelectQuery(["o"], where: [
+            .graph(.iri(graph), [.triple(SPARQLTriplePattern(.iri(subject), .property(FOAF.knows.sparql), .variable("o")))])
+        ]))
+        let values = result.bindings.compactMap { $0["o"] }
+        #expect(values.contains(.iri(objectB)))
+        #expect(!values.contains(.iri(objectA)))
     }
 
-    #expect(decoded.variables.contains(Variable(rawValue: "s")))
+    @Test("A graph put through the Graph Store comes back", .enabled(if: Environment.graphStoreURL != nil))
+    func graphStoreRoundTrip() async throws {
+        let client = SPARQLGraphStoreClient(configuration: SPARQLGraphStoreConfiguration(graphStoreURL: try #require(Environment.graphStoreURL)))
+        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? Fixture("graph_store_graph.ttl", in: .module).namedGraph()
+        let triple = try Fixture("graph_store_triple.ttl", in: .module).triple(FOAF.knows.self)
+
+        _ = try await client.putGraph([triple], graph: .named(graph))
+        #expect(try await client.getGraph(.named(graph)).contains(triple))
+        #expect((200 ... 299).contains(try await client.headGraph(.named(graph)).statusCode))
+        _ = try await client.deleteGraph(.named(graph))
+    }
+
+    @Test("A federated query reaches the remote service", .enabled(if: Environment.queryURL != nil && Environment.iri("SPARQL_FEDERATED_ENDPOINT_URL") != nil))
+    func federatedRoundTrip() async throws {
+        let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(queryURL: try #require(Environment.queryURL)))
+        let remote = try #require(Environment.iri("SPARQL_FEDERATED_ENDPOINT_URL"))
+        let subject = Environment.iri("SPARQL_FEDERATED_SUBJECT_IRI")
+        let local: SPARQLPattern
+        if let subject {
+            local = .values(try SPARQLValues(variables: ["s"], rows: [[.iri(subject)]]))
+        } else {
+            local = anyTriple()
+        }
+        let query = SPARQLSelectQuery(["s", "p", "o"], where: [local, .service(remote, silent: true, [anyTriple()])], limit: 1)
+
+        #expect(query.federatedBindingAnalysis().propagatedVariables.contains("s"))
+        let result = try await client.executeSelect(query)
+        #expect(result.variables.contains("s"))
+        if Environment.values["SPARQL_FEDERATED_ASSERT_BINDINGS"] == "1" {
+            #expect(!result.bindings.isEmpty)
+            if let subject {
+                #expect(result.bindings.compactMap { $0["s"] }.contains(.iri(subject)))
+            }
+        }
+    }
+
+    @Test("Each configured entailment regime answers", .enabled(if: Environment.queryURL != nil && Environment.iris("SPARQL_TEST_ENTAILMENT_REGIMES").count >= 2))
+    func entailmentRegimes() async throws {
+        let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(queryURL: try #require(Environment.queryURL)))
+        let declared = EntailmentRegimes.ontology.compactMap { $0 as? any EntailmentRegimes.Entailment }
+        let regimes = Environment.iris("SPARQL_TEST_ENTAILMENT_REGIMES").compactMap(declared.individual(denotedBy:))
+        try #require(regimes.count >= 2)
+        let service = ServiceDescription.ServiceIndividual()
+        service.resultFormat = [Formats.SPARQL_Results_JSON]
+        let description = SPARQLServiceDescription(service: service, entailmentRegimes: regimes)
+        let ask = SPARQLAskQuery(where: [anyTriple()])
+
+        var answers: [Data] = []
+        for regime in regimes.prefix(2) {
+            answers.append(try await client.executeQuery(
+                ask,
+                options: SPARQLQueryRequestOptions(requiredEntailmentRegime: regime),
+                serviceDescription: description
+            ))
+        }
+        for answer in answers {
+            guard case .boolean = try (SPARQLJSONResultDecoder().decode(answer) as SPARQLQueryResult) else {
+                Issue.record("An ASK answered without a boolean.")
+                continue
+            }
+        }
+        if Environment.values["SPARQL_EXPECT_ENTAILMENT_DIFFERENCE"] == "1" {
+            #expect(answers[0] != answers[1])
+        }
+    }
+
+    @Test("Two endpoints answer the same ASK", .enabled(if: Environment.url("SPARQL_ENTAILMENT_ENDPOINT_A_URL") != nil && Environment.url("SPARQL_ENTAILMENT_ENDPOINT_B_URL") != nil))
+    func crossEndpointEntailment() async throws {
+        let ask = SPARQLAskQuery(where: [anyTriple()])
+        var answers: [Data] = []
+        for name in ["SPARQL_ENTAILMENT_ENDPOINT_A_URL", "SPARQL_ENTAILMENT_ENDPOINT_B_URL"] {
+            let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(queryURL: try #require(Environment.url(name))))
+            answers.append(try await client.executeQuery(ask))
+        }
+        for answer in answers {
+            guard case .boolean = try (SPARQLJSONResultDecoder().decode(answer) as SPARQLQueryResult) else {
+                Issue.record("An ASK answered without a boolean.")
+                continue
+            }
+        }
+        if Environment.values["SPARQL_EXPECT_CROSS_ENDPOINT_ENTAILMENT_DIFFERENCE"] == "1" {
+            #expect(answers[0] != answers[1])
+        }
+    }
 }

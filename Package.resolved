@@ -1,31 +1,31 @@
 {
-  "originHash" : "ea070b43a5ab961b64017c9f059ae5bc539b13bcb5c73c20c22fb0aafb7ba475",
+  "originHash" : "257da5a9f3cd0d73591d844e5ac0535759913f6bee261909c1e950cf7c31d6bc",
   "pins" : [
+    {
+      "identity" : "irikit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SemanticKit/IRIKit.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "f5611e8fccc1fe63f0d6dcde698b4c73bd3b683a"
+      }
+    },
     {
       "identity" : "rdfkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SemanticKit/RDFKit.git",
       "state" : {
         "branch" : "main",
-        "revision" : "575ecf51cbccfbb2c3180f4ffb4d81e5279ef6d6"
-      }
-    },
-    {
-      "identity" : "semantickit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SemanticKit/SemanticKit.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "0494322e0ce47336b8749d7b325a31891cd0cc1e"
+        "revision" : "ade85d4b7d0783340ae6ac80a75ba54db546589d"
       }
     },
     {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-syntax.git",
+      "location" : "https://github.com/swiftlang/swift-syntax",
       "state" : {
-        "revision" : "0687f71944021d616d34d922343dcef086855920",
-        "version" : "600.0.1"
+        "revision" : "050f1a346fbbac0ca2cfb15a95274f7bd1cf0ccf",
+        "version" : "604.0.0"
       }
     }
   ],

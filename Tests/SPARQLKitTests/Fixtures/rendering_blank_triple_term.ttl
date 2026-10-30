@@ -1,0 +1,8 @@
+# A statement about a triple term whose subject is a blank node (RDF 1.2
+# Turtle §2.8): a query cannot name that node, so the rendering tests expect
+# the term to be refused as a pattern position.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+ex:blankNaming rdf:reifies <<( _:b1 foaf:name ex:a )>> .

@@ -1,0 +1,5 @@
+# A named graph whose IRI holds query characters the graph parameter
+# percent-encodes.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+
+[] a sd:GraphCollection ; sd:namedGraph [ sd:name <https://example.org/g?a=1&b=c+d> ] .

@@ -1,0 +1,6 @@
+# A named graph and the document that describes its content (sd:graph), the
+# one LOAD reads into it.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix ex: <http://example.org/> .
+
+[] a sd:GraphCollection ; sd:namedGraph [ sd:name ex:g ; sd:graph ex:source ] .

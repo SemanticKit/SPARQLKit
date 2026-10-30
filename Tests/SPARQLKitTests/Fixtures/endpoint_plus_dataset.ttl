@@ -1,0 +1,5 @@
+# A query dataset whose default graph IRI holds a '+', which the protocol
+# parameters percent-encode.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+
+[] a sd:Dataset ; sd:defaultGraph <https://example.org/graphs/a+b> .

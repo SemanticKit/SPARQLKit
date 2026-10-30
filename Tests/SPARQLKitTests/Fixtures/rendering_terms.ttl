@@ -1,0 +1,8 @@
+# Terms the rendering tests place in queries: Alice, whom she knows, and the
+# named graph the patterns look in.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+ex:alice foaf:knows ex:a .
+[] a sd:GraphCollection ; sd:namedGraph [ sd:name ex:graph ] .

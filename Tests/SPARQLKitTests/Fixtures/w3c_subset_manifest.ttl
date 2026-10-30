@@ -64,8 +64,8 @@
    sk:defaultGraphURI "https://example.org/graphs/default" ;
    sk:namedGraphURI "https://example.org/graphs/n1" ;
    sk:expectURLContains "query=SELECT" ,
-                        "default-graph-uri=https://example.org/graphs/default" ,
-                        "named-graph-uri=https://example.org/graphs/n1" .
+                        "default-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fdefault" ,
+                        "named-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fn1" .
 
 <#proto-post-query>
    a sk:ProtocolPostQueryRequestTest ;
@@ -85,5 +85,5 @@
 
 <#render-query>
    a sk:RenderQueryTest ;
-   sk:queryTemplate "basicSelect" ;
+   sk:queryTemplate [ a sk:BasicSelectQuery ] ;
    sk:expectContains "SELECT ?s ?o" , "LIMIT 5" , "WHERE {" .

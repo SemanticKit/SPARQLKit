@@ -3,8 +3,8 @@
 
 <https://example.org/sparql> a sd:Service ;
   sd:endpoint <https://example.org/sparql> ;
-  sd:supportedLanguage sd:SPARQL12Query ;
+  sd:supportedLanguage sd:SPARQLQuery ;
   sd:feature sd:UnionDefaultGraph ;
   sd:resultFormat formats:SPARQL_Results_JSON ;
   sd:resultFormat formats:Turtle ;
-  sd:entailmentRegime <http://www.w3.org/ns/entailment/RDFS> .
+  sd:defaultEntailmentRegime <http://www.w3.org/ns/entailment/RDFS> .

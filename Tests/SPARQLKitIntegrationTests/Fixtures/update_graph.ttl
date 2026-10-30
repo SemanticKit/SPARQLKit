@@ -1,0 +1,6 @@
+# The named graph the update round trip writes when SPARQL_TEST_GRAPH_IRI is
+# unset.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix ex: <http://example.org/> .
+
+[] a sd:GraphCollection ; sd:namedGraph [ sd:name ex:test-graph ] .

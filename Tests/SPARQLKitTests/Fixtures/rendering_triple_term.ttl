@@ -1,0 +1,8 @@
+# A statement about the triple term "Alice is named Alice" (RDF 1.2 Turtle
+# §2.8): the term a decoded result hands the rendering tests to place in a
+# pattern.
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+ex:aliceNaming rdf:reifies <<( ex:alice foaf:name "Alice" )>> .

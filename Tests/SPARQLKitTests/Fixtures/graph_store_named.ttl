@@ -1,0 +1,4 @@
+# The named graph the Graph Store Protocol tests address.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+
+[] a sd:GraphCollection ; sd:namedGraph [ sd:name <https://example.org/g> ] .

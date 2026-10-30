@@ -1,10 +1,21 @@
 import Foundation
-import SemanticKit
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
+import RDFCore
+import RDFFormats
 
+/// Decodes SPARQL 1.2 Query Results XML documents.
+///
+/// Each term in the document is read by an ``RDFCore/ObjectTerm``
+/// initializer as its element closes (SPARQL 1.2 Query Results XML Format
+/// §2.3).
 public struct SPARQLXMLResultDecoder: Sendable {
     public init() {}
 
-    public func decodeQueryResult(_ data: Data) throws -> SPARQLQueryResult {
+    /// Decodes a results document: the solutions of a `SELECT` query or the
+    /// answer to an `ASK` query.
+    public func decode(_ data: Data) throws -> SPARQLQueryResult {
         let parserDelegate = XMLResultsParserDelegate()
         let parser = XMLParser(data: data)
         parser.delegate = parserDelegate
@@ -25,9 +36,12 @@ public struct SPARQLXMLResultDecoder: Sendable {
         return try parserDelegate.makeResult()
     }
 
+    /// Decodes the solutions of a `SELECT` query.
+    ///
+    /// - Throws: ``SPARQLError/decodingFailure(_:)`` when the document is
+    ///   the answer to an `ASK` query.
     public func decode(_ data: Data) throws -> SPARQLResultSet {
-        let queryResult = try decodeQueryResult(data)
-        switch queryResult {
+        switch try decode(data) as SPARQLQueryResult {
         case let .bindings(resultSet):
             return resultSet
         case .boolean:
@@ -49,9 +63,9 @@ private struct XMLPartialTerm {
     var datatype: String?
     var language: String?
     var direction: String?
-    var subject: RDFTerm?
-    var predicate: RDFTerm?
-    var object: RDFTerm?
+    var subject: ObjectTerm?
+    var predicate: ObjectTerm?
+    var object: ObjectTerm?
 }
 
 private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
@@ -82,7 +96,11 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
         switch name {
         case "variable":
             if let variableName = attributeDict["name"] {
-                variables.append(Variable(rawValue: variableName))
+                do {
+                    variables.append(try Variable(resultName: variableName))
+                } catch {
+                    fail(parser, "'\(variableName)' is not a SPARQL variable name.")
+                }
             }
 
         case "result":
@@ -154,9 +172,13 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
                 fail(parser, "Malformed XML result term stack.")
                 return
             }
+            guard partial.kind != .triple else {
+                fail(parser, "Invalid XML parser state for leaf term finalization.")
+                return
+            }
 
             do {
-                let term = try finalizeLeafTerm(partial)
+                let term = try ObjectTerm(partial)
                 try attachTerm(term, parser: parser)
             } catch let error as SPARQLError {
                 if case let .decodingFailure(message) = error {
@@ -173,9 +195,13 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
                 fail(parser, "Malformed XML result triple term stack.")
                 return
             }
+            guard partial.kind == .triple else {
+                fail(parser, "Incomplete triple term in XML results payload.")
+                return
+            }
 
             do {
-                let term = try finalizeTripleTerm(partial)
+                let term = try ObjectTerm(partial)
                 try attachTerm(term, parser: parser)
             } catch let error as SPARQLError {
                 if case let .decodingFailure(message) = error {
@@ -203,6 +229,9 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
                 booleanValue = true
             } else if trimmed == "false" {
                 booleanValue = false
+            } else {
+                // XML Format §2.3.3: the element holds `true` or `false`.
+                fail(parser, "<boolean> holds '\(trimmed)', not true or false.")
             }
             inBoolean = false
             booleanTextBuffer = ""
@@ -223,7 +252,7 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
         return .bindings(SPARQLResultSet(variables: variables, bindings: bindings))
     }
 
-    private func attachTerm(_ term: RDFTerm, parser _: XMLParser) throws {
+    private func attachTerm(_ term: ObjectTerm, parser _: XMLParser) throws {
         if var parent = termStack.last, parent.kind == .triple {
             guard let component = tripleComponentStack.last else {
                 throw SPARQLError.decodingFailure("Malformed triple term structure in XML results.")
@@ -248,50 +277,7 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
             throw SPARQLError.decodingFailure("Term appeared outside of a binding in XML results.")
         }
 
-        currentBinding[Variable(rawValue: variableName)] = term
-    }
-
-    private func finalizeLeafTerm(_ partial: XMLPartialTerm) throws -> RDFTerm {
-        switch partial.kind {
-        case .uri:
-            return try .iri(partial.text)
-        case .bnode:
-            return try .blankNode(partial.text)
-        case .literal:
-            let textDirection = partial.direction.flatMap { TextDirection(rawValue: $0.lowercased()) }
-            return try .literal(
-                partial.text,
-                datatype: partial.datatype,
-                language: partial.language,
-                direction: textDirection
-            )
-        case .triple:
-            throw SPARQLError.decodingFailure("Invalid XML parser state for leaf term finalization.")
-        }
-    }
-
-    private func finalizeTripleTerm(_ partial: XMLPartialTerm) throws -> RDFTerm {
-        guard let subjectTerm = partial.subject,
-              let predicateTerm = partial.predicate,
-              let objectTerm = partial.object
-        else {
-            throw SPARQLError.decodingFailure("Incomplete triple term in XML results payload.")
-        }
-
-        guard let subjectNode = subjectTerm.node as? any SemanticKit.RDFSubject else {
-            throw SPARQLError.decodingFailure("Triple subject must be IRI or blank node.")
-        }
-
-        guard let predicateIRI = predicateTerm.node as? IRI else {
-            throw SPARQLError.decodingFailure("Triple predicate must be an IRI.")
-        }
-
-        let triple = RDFTripleTerm(
-            subject: try RDFSubject(subjectNode),
-            predicate: predicateIRI,
-            object: RDFTerm(objectTerm.node)
-        )
-        return RDFTerm(triple)
+        currentBinding[try Variable(resultName: variableName)] = term
     }
 
     private func fail(_ parser: XMLParser, _ message: String) {
@@ -304,5 +290,34 @@ private final class XMLResultsParserDelegate: NSObject, XMLParserDelegate {
             return String(name[name.index(after: index)...])
         }
         return name
+    }
+}
+
+extension ObjectTerm {
+    /// A term element of an XML results document, once it has closed:
+    /// `<uri>`, `<bnode>`, `<literal>` or a `<triple>` whose three
+    /// components have been read (SPARQL 1.2 Query Results XML Format §2.3).
+    fileprivate init(_ partial: XMLPartialTerm) throws {
+        switch partial.kind {
+        case .uri:
+            try self.init(iri: partial.text)
+        case .bnode:
+            try self.init(blankNode: partial.text)
+        case .literal:
+            try self.init(
+                literal: partial.text,
+                datatype: partial.datatype,
+                language: partial.language,
+                direction: partial.direction
+            )
+        case .triple:
+            guard let subject = partial.subject,
+                  let predicate = partial.predicate,
+                  let object = partial.object
+            else {
+                throw SPARQLError.decodingFailure("Incomplete triple term in XML results payload.")
+            }
+            try self.init(tripleTermSubject: subject, predicate: predicate, object: object)
+        }
     }
 }

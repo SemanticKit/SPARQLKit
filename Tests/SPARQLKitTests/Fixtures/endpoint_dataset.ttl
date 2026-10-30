@@ -1,0 +1,7 @@
+# The RDF dataset a query is run against (SPARQL 1.2 Protocol §2.1.4): one
+# default graph and two named graphs.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+
+[] a sd:Dataset ;
+  sd:defaultGraph <https://example.org/graphs/default> ;
+  sd:namedGraph [ sd:name <https://example.org/graphs/n1> ] , [ sd:name <https://example.org/graphs/n2> ] .
