@@ -81,6 +81,11 @@ public struct Formats: Ontology {
             Label("PROV-XML")
             Comment("The PROV-XML file format.")
         }
+        Individual("RDFa") {
+            Type(Formats.Format)
+            Label("RDFa")
+            Comment("The RDFa file format.")
+        }
         Individual("RDF_JSON") {
             Type(Formats.Format)
             Label("RDF/JSON")

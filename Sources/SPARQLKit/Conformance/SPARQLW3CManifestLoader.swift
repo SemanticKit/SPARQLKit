@@ -146,13 +146,8 @@ extension SPARQLConformanceCase {
 }
 
 extension SPARQLConformanceOperation {
-    /// The operation a manifest entry's `sk:operation` or type names.
+    /// The operation a manifest entry's `rdf:type` names.
     init(manifestEntry node: SubjectTerm, in graph: ManifestGraph) throws {
-        if let explicit = graph.literal(node, SPARQLConformance.operation.metadata.id),
-           let operation = SPARQLConformanceOperation(rawValue: explicit) {
-            self = operation
-            return
-        }
         for type in graph.iris(node, RDF.type.metadata.id) {
             if let operation = SPARQLConformanceOperation(manifestType: type, of: node, in: graph) {
                 self = operation

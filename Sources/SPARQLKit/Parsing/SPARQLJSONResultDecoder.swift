@@ -62,7 +62,7 @@ public struct SPARQLJSONResultDecoder: Sendable {
     /// Decodes a results document: the solutions of a `SELECT` query or the
     /// answer to an `ASK` query.
     public func decode(_ data: Data) throws -> SPARQLQueryResult {
-        try (decode(data, contentType: nil) as SPARQLDecodedQueryResult).result
+        try decode(data, contentType: nil).result
     }
 
     /// Decodes the solutions of a `SELECT` query.

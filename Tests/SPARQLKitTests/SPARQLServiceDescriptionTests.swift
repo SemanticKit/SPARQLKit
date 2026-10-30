@@ -75,6 +75,33 @@ struct SPARQLServiceDescriptionTests {
         #expect(description.entailmentRegimes.first === Entailment.OWL_Direct)
     }
 
+    @Test("Every format of the W3C formats vocabulary decodes into its declared individual", .tags(.vocabulary))
+    func decodesEveryDeclaredFormat() throws {
+        // Every individual of http://www.w3.org/ns/formats/, as the W3C
+        // Unique URIs for File Formats vocabulary defines them.
+        let turtle = """
+            @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+            @prefix formats: <http://www.w3.org/ns/formats/> .
+            <https://example.org/sparql> a sd:Service ;
+              sd:resultFormat formats:JSON-LD , formats:N3 , formats:N-Triples , formats:N-Quads ,
+                formats:LD_Patch , formats:microdata , formats:OWL_XML , formats:OWL_Functional ,
+                formats:OWL_Manchester , formats:POWDER , formats:POWDER-S , formats:PROV-N ,
+                formats:PROV-XML , formats:RDFa , formats:RDF_JSON , formats:RDF_XML , formats:RIF_XML ,
+                formats:SPARQL_Results_XML , formats:SPARQL_Results_JSON , formats:SPARQL_Results_CSV ,
+                formats:SPARQL_Results_TSV , formats:Turtle , formats:TriG .
+            """
+        let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle).resultFormats
+        let decodedNames = decoded.map { type(of: $0 as any RDFCore.Entity).metadata.name }
+        // The individuals the Formats ontology declares: the decoder must
+        // know each of them, so the vocabulary and the decoder cannot drift.
+        let declaredNames = Formats().entities.compactMap { ($0 as? RDFCore.Individual)?.localName }
+
+        #expect(decoded.count == 23)
+        #expect(Set(decodedNames) == Set(declaredNames))
+        #expect(decodedNames.count == declaredNames.count)
+        #expect(decoded.contains { $0 === Formats.RDFa })
+    }
+
     @Test("An IRI names the declared individual whose type carries it", .tags(.vocabulary))
     func iriNamesDeclaredIndividual() {
         let regimes: [any ServiceDescription.EntailmentRegime] = [Entailment.RDFS, Entailment.OWL_Direct]

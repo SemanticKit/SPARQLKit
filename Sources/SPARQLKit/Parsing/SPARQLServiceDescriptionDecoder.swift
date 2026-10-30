@@ -32,7 +32,7 @@ public struct SPARQLServiceDescriptionDecoder: Sendable {
         let formats: [any Formats.Format] = [
             Formats.JSON_LD, Formats.N3, Formats.N_Triples, Formats.N_Quads, Formats.LD_Patch, Formats.microdata,
             Formats.OWL_XML, Formats.OWL_Functional, Formats.OWL_Manchester, Formats.POWDER, Formats.POWDER_S,
-            Formats.PROV_N, Formats.PROV_XML, Formats.RDF_JSON, Formats.RDF_XML, Formats.RIF_XML,
+            Formats.PROV_N, Formats.PROV_XML, Formats.RDFa, Formats.RDF_JSON, Formats.RDF_XML, Formats.RIF_XML,
             Formats.SPARQL_Results_XML, Formats.SPARQL_Results_JSON, Formats.SPARQL_Results_CSV,
             Formats.SPARQL_Results_TSV, Formats.Turtle, Formats.TriG
         ]

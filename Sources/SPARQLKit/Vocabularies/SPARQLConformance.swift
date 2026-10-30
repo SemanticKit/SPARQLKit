@@ -84,10 +84,6 @@ public struct SPARQLConformance: Ontology {
             Comment("A Graph Store Protocol DELETE of a named graph.")
         }
 
-        Property("operation") {
-            Label("operation")
-            Comment("The operation a case runs, overriding the one its type implies.")
-        }
         Property("queryTemplate") {
             Label("query template")
             Comment("The typed query a render case renders.")
