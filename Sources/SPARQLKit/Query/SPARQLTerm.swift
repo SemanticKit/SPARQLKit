@@ -5,14 +5,15 @@ import RDFFormats
 /// A translated term in a position of a query or update.
 ///
 /// The term is the Swift the vocabulary was translated into: an individual,
-/// such as the property `FOAF.name` or the format `Formats.Turtle`, or a
-/// class, such as `FOAF.PersonIndividual`. Two terms are equal when they are
-/// the same individual (`===`) or the same class. The IRI that denotes the
-/// term is read only when the term is rendered into query text, the
-/// translation into SPARQL.
+/// such as the format `Formats.Turtle`, a property's term type, such as
+/// `FOAF.name`, or a class, such as `FOAF.PersonIndividual`. Two terms are
+/// equal when they are the same individual (`===`), the same property term
+/// type or the same class. The IRI that denotes the term is read only when
+/// the term is rendered into query text, the translation into SPARQL.
 public struct SPARQLTerm: Hashable, Sendable {
     private enum Denotation: Sendable {
         case individual(any RDFCore.Resource)
+        case property(any RDFCore.PropertyTerm.Type)
         case `class`(any RDFCore.ResourceClass.Type)
     }
 
@@ -28,6 +29,14 @@ public struct SPARQLTerm: Hashable, Sendable {
         denotation = .individual(individual)
     }
 
+    /// The term a property is, as its translated term type.
+    ///
+    /// - Precondition: The property's declared key gives an IRI.
+    public init(_ property: any RDFCore.PropertyTerm.Type) {
+        precondition(IRI(of: property) != nil, "The property's declared key gives no IRI a query can name it by.")
+        denotation = .property(property)
+    }
+
     /// The term a class is, as the Swift class whose instances are its
     /// members.
     ///
@@ -37,21 +46,25 @@ public struct SPARQLTerm: Hashable, Sendable {
         denotation = .class(`class`)
     }
 
+    /// The IRI that denotes this term, derived when the term leaves the
+    /// runtime.
+    private var iri: IRI? {
+        switch denotation {
+        case .individual(let individual): IRI(of: individual)
+        case .property(let property): IRI(of: property)
+        case .class(let type): IRI(of: type)
+        }
+    }
+
     /// This term in SPARQL text: the IRI that denotes it, as an `IRIREF`.
     func render() -> String {
-        switch denotation {
-        case .individual(let individual): IRI(of: individual)!.render()
-        case .class(let type): IRI(of: type)!.render()
-        }
+        iri!.render()
     }
 
     /// Whether `iri` denotes this term: how a decoded result term is
     /// compared with it.
     func isDenoted(by iri: IRI) -> Bool {
-        switch denotation {
-        case .individual(let individual): IRI(of: individual) == iri
-        case .class(let type): IRI(of: type) == iri
-        }
+        self.iri == iri
     }
 
     public static func == (lhs: SPARQLTerm, rhs: SPARQLTerm) -> Bool {
@@ -62,10 +75,12 @@ public struct SPARQLTerm: Hashable, Sendable {
         hasher.combine(identity)
     }
 
-    /// The Swift identity of the term: the object, or the class.
+    /// The Swift identity of the term: the object, the property term type,
+    /// or the class.
     private var identity: ObjectIdentifier {
         switch denotation {
         case .individual(let individual): ObjectIdentifier(individual)
+        case .property(let property): ObjectIdentifier(property)
         case .class(let type): ObjectIdentifier(type)
         }
     }
@@ -74,6 +89,13 @@ public struct SPARQLTerm: Hashable, Sendable {
 extension RDFCore.Resource {
     /// This individual, in a position of a SPARQL query or update.
     public var sparql: SPARQLTerm {
+        SPARQLTerm(self)
+    }
+}
+
+extension RDFCore.PropertyTerm {
+    /// This property, in a position of a SPARQL query or update.
+    public static var sparql: SPARQLTerm {
         SPARQLTerm(self)
     }
 }

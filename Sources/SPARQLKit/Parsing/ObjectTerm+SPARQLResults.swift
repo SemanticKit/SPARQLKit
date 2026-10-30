@@ -98,13 +98,24 @@ extension ObjectTerm {
             return
         }
         // RDF 1.2 Concepts §3.4: `xsd:string` is the datatype of a simple
-        // literal, which ``Literal/init(_:datatype:)`` makes for it, and
-        // `rdf:langString` and `rdf:dirLangString` need a language tag.
+        // literal, and `rdf:langString` and `rdf:dirLangString` need a
+        // language tag. RDFFormats' term reading maps a datatype IRI to the
+        // literal's form, so the typed literal is read back through it:
+        // written by ``NTriplesEncoder`` as the object of a triple and read
+        // by ``NTriplesDecoder``, which gives `^^xsd:string` as the simple
+        // literal and refuses `^^rdf:langString` and `^^rdf:dirLangString`.
+        let datatypeIRI = try IRI(resultText: datatype)
+        let written: Graph = [Graph.Element(subject: .iri(datatypeIRI), predicate: datatypeIRI, object: .literal(Literal(lexicalForm, datatype: datatypeIRI)))]
+        let read: Graph
         do {
-            self = .literal(try Literal(lexicalForm, datatype: try IRI(resultText: datatype)))
-        } catch TermError.datatypeRequiresLanguageTag {
-            throw SPARQLError.decodingFailure("A language-tagged string needs a language tag.")
+            read = try NTriplesDecoder().decode(NTriplesEncoder().encode(written))
+        } catch {
+            throw SPARQLError.decodingFailure("\"\(lexicalForm)\"^^<\(datatype)> is not a literal: \(error)")
         }
+        guard let triple = read.only, case .literal(let literal) = triple.object else {
+            throw SPARQLError.decodingFailure("\"\(lexicalForm)\"^^<\(datatype)> is not a single literal.")
+        }
+        self = .literal(literal)
     }
 
     /// A triple term from its three decoded components.

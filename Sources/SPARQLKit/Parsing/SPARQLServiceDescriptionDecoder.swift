@@ -40,13 +40,13 @@ public struct SPARQLServiceDescriptionDecoder: Sendable {
 
     /// The properties whose domain is `sd:Service`: a node the document gives
     /// one of them is a service (RDF 1.2 Semantics, rdfs2).
-    static let serviceProperties: [any RDFCore.Resource] = [
-        ServiceDescription.endpoint, ServiceDescription.feature, ServiceDescription.defaultEntailmentRegime,
-        ServiceDescription.defaultSupportedEntailmentProfile, ServiceDescription.extensionFunction,
-        ServiceDescription.extensionAggregate, ServiceDescription.languageExtension,
-        ServiceDescription.supportedLanguage, ServiceDescription.supportedVersion,
-        ServiceDescription.propertyFeature, ServiceDescription.defaultDataset,
-        ServiceDescription.availableGraphs, ServiceDescription.resultFormat, ServiceDescription.inputFormat
+    static let serviceProperties: [any RDFCore.PropertyTerm.Type] = [
+        ServiceDescription.endpoint.self, ServiceDescription.feature.self, ServiceDescription.defaultEntailmentRegime.self,
+        ServiceDescription.defaultSupportedEntailmentProfile.self, ServiceDescription.extensionFunction.self,
+        ServiceDescription.extensionAggregate.self, ServiceDescription.languageExtension.self,
+        ServiceDescription.supportedLanguage.self, ServiceDescription.supportedVersion.self,
+        ServiceDescription.propertyFeature.self, ServiceDescription.defaultDataset.self,
+        ServiceDescription.availableGraphs.self, ServiceDescription.resultFormat.self, ServiceDescription.inputFormat.self
     ]
 
     public init() {}
@@ -65,41 +65,41 @@ public struct SPARQLServiceDescriptionDecoder: Sendable {
             )
         }
 
-        func declared<Individual>(_ property: any RDFCore.Resource, of subject: SubjectTerm, as _: Individual.Type) -> [Individual] {
+        func declared<Individual>(_ property: any RDFCore.PropertyTerm.Type, of subject: SubjectTerm, as _: Individual.Type) -> [Individual] {
             let candidates = Self.vocabulary.compactMap { $0 as? Individual }
             return graph.iris(property, of: subject).compactMap(candidates.individual(denotedBy:))
         }
-        func regimes(_ property: any RDFCore.Resource, of subject: SubjectTerm) -> [any EntailmentRegimes.Entailment] {
+        func regimes(_ property: any RDFCore.PropertyTerm.Type, of subject: SubjectTerm) -> [any EntailmentRegimes.Entailment] {
             graph.iris(property, of: subject).compactMap(Self.regimes.individual(denotedBy:))
         }
-        var entailmentRegimes = regimes(ServiceDescription.defaultEntailmentRegime, of: node)
+        var entailmentRegimes = regimes(ServiceDescription.defaultEntailmentRegime.self, of: node)
         func namedGraphs(of collection: SubjectTerm) -> [any ServiceDescription.NamedGraph] {
-            graph.objects(ServiceDescription.namedGraph, of: collection).compactMap(\.subject).map { node in
-                entailmentRegimes += regimes(ServiceDescription.entailmentRegime, of: node)
+            graph.objects(ServiceDescription.namedGraph.self, of: collection).compactMap(\.subject).map { node in
+                entailmentRegimes += regimes(ServiceDescription.entailmentRegime.self, of: node)
                 return ServiceDescription.NamedGraphIndividual()
             }
         }
 
         let service = ServiceDescription.ServiceIndividual()
-        service.supportedLanguage = declared(ServiceDescription.supportedLanguage, of: node, as: (any ServiceDescription.Language).self)
-        service.feature = declared(ServiceDescription.feature, of: node, as: (any ServiceDescription.Feature).self)
-        service.languageExtension = declared(ServiceDescription.languageExtension, of: node, as: (any ServiceDescription.Feature).self)
-        service.propertyFeature = declared(ServiceDescription.propertyFeature, of: node, as: (any ServiceDescription.Feature).self)
-        service.resultFormat = declared(ServiceDescription.resultFormat, of: node, as: (any Formats.Format).self)
-        service.inputFormat = declared(ServiceDescription.inputFormat, of: node, as: (any Formats.Format).self)
-        service.defaultDataset = graph.objects(ServiceDescription.defaultDataset, of: node).compactMap(\.subject).map { node in
+        service.supportedLanguage = declared(ServiceDescription.supportedLanguage.self, of: node, as: (any ServiceDescription.Language).self)
+        service.feature = declared(ServiceDescription.feature.self, of: node, as: (any ServiceDescription.Feature).self)
+        service.languageExtension = declared(ServiceDescription.languageExtension.self, of: node, as: (any ServiceDescription.Feature).self)
+        service.propertyFeature = declared(ServiceDescription.propertyFeature.self, of: node, as: (any ServiceDescription.Feature).self)
+        service.resultFormat = declared(ServiceDescription.resultFormat.self, of: node, as: (any Formats.Format).self)
+        service.inputFormat = declared(ServiceDescription.inputFormat.self, of: node, as: (any Formats.Format).self)
+        service.defaultDataset = graph.objects(ServiceDescription.defaultDataset.self, of: node).compactMap(\.subject).map { node in
             let dataset = ServiceDescription.DatasetIndividual()
             dataset.namedGraph = namedGraphs(of: node)
             return dataset
         }
-        service.availableGraphs = graph.objects(ServiceDescription.availableGraphs, of: node).compactMap(\.subject).map { node in
+        service.availableGraphs = graph.objects(ServiceDescription.availableGraphs.self, of: node).compactMap(\.subject).map { node in
             let collection = ServiceDescription.GraphCollectionIndividual()
             collection.namedGraph = namedGraphs(of: node)
             return collection
         }
         return SPARQLServiceDescription(
             service: service,
-            endpointURLs: graph.iris(ServiceDescription.endpoint, of: node).compactMap { URL(string: $0.rawValue) },
+            endpointURLs: graph.iris(ServiceDescription.endpoint.self, of: node).compactMap { URL(string: $0.rawValue) },
             entailmentRegimes: entailmentRegimes
         )
     }

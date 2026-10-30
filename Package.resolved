@@ -1,5 +1,5 @@
 {
-  "originHash" : "92f576521a68064c6acc45898bd0b420969f02ef6b578e1de416e0a4d3b81322",
+  "originHash" : "257da5a9f3cd0d73591d844e5ac0535759913f6bee261909c1e950cf7c31d6bc",
   "pins" : [
     {
       "identity" : "irikit",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/SemanticKit/RDFKit.git",
       "state" : {
-        "branch" : "wp/integration",
-        "revision" : "f2cf8614568ef4b76877f068b4b8a750410747fb"
+        "branch" : "main",
+        "revision" : "ade85d4b7d0783340ae6ac80a75ba54db546589d"
       }
     },
     {
