@@ -86,7 +86,6 @@ public indirect enum SPARQLPattern: Hashable, Sendable {
     }
 
     func render(into lines: inout SPARQLLines) {
-        let writer = SPARQLTermWriter()
         switch self {
         case .triple(let pattern):
             lines.append(pattern.render())
@@ -103,13 +102,13 @@ public indirect enum SPARQLPattern: Hashable, Sendable {
         case .graph(let name, let patterns):
             lines.block("GRAPH " + name.render()) { Self.render(patterns, into: &$0) }
         case .service(let endpoint, let silent, let patterns):
-            lines.block("SERVICE " + (silent ? "SILENT " : "") + writer.write(endpoint)) {
+            lines.block("SERVICE " + (silent ? "SILENT " : "") + endpoint.render()) {
                 Self.render(patterns, into: &$0)
             }
         case .filter(let expression):
             lines.append("FILTER(" + expression.render() + ")")
         case .bind(let expression, let variable):
-            lines.append("BIND(" + expression.render() + " AS " + writer.write(variable) + ")")
+            lines.append("BIND(" + expression.render() + " AS " + variable.render() + ")")
         case .values(let values):
             values.render(into: &lines)
         case .subquery(let query):

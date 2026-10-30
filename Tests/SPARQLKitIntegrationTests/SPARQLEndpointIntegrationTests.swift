@@ -91,7 +91,11 @@ struct SPARQLEndpointIntegrationTests {
     @Test("Each configured entailment regime answers", .enabled(if: Environment.queryURL != nil && Environment.iris("SPARQL_TEST_ENTAILMENT_REGIMES").count >= 2))
     func entailmentRegimes() async throws {
         let client = SPARQLEndpointClient(configuration: SPARQLEndpointConfiguration(queryURL: try #require(Environment.queryURL)))
-        let regimes = Environment.iris("SPARQL_TEST_ENTAILMENT_REGIMES").compactMap(Entailment.decodeRegime)
+        let declared: [any ServiceDescription.EntailmentRegime] = [
+            Entailment.Simple, Entailment.RDF, Entailment.RDFS, Entailment.D,
+            Entailment.OWL_Direct, Entailment.OWL_RDF_Based, Entailment.RIF
+        ]
+        let regimes = Environment.iris("SPARQL_TEST_ENTAILMENT_REGIMES").compactMap(declared.individual(named:))
         try #require(regimes.count >= 2)
         let description = SPARQLServiceDescription(resultFormats: [Formats.SPARQL_Results_JSON], entailmentRegimes: regimes)
         let ask = SPARQLAskQuery(where: [anyTriple()])
@@ -105,7 +109,7 @@ struct SPARQLEndpointIntegrationTests {
             ))
         }
         for answer in answers {
-            guard case .boolean = try SPARQLJSONResultDecoder().decodeQueryResult(answer) else {
+            guard case .boolean = try (SPARQLJSONResultDecoder().decode(answer) as SPARQLQueryResult) else {
                 Issue.record("An ASK answered without a boolean.")
                 continue
             }
@@ -124,7 +128,7 @@ struct SPARQLEndpointIntegrationTests {
             answers.append(try await client.executeQuery(ask))
         }
         for answer in answers {
-            guard case .boolean = try SPARQLJSONResultDecoder().decodeQueryResult(answer) else {
+            guard case .boolean = try (SPARQLJSONResultDecoder().decode(answer) as SPARQLQueryResult) else {
                 Issue.record("An ASK answered without a boolean.")
                 continue
             }

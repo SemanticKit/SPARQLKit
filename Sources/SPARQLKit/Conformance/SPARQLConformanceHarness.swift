@@ -15,10 +15,6 @@ public struct SPARQLConformanceSuite: Codable, Sendable {
         self.name = name
         self.cases = cases
     }
-
-    public static func decode(from data: Data) throws -> SPARQLConformanceSuite {
-        try JSONDecoder().decode(SPARQLConformanceSuite.self, from: data)
-    }
 }
 
 public struct SPARQLConformanceCase: Codable, Sendable {
@@ -229,12 +225,12 @@ public struct SPARQLConformanceRunner {
         switch testCase.operation {
         case .decodeJSONBindings:
             let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLJSONResultDecoder().decode(data)
+            let result: SPARQLResultSet = try SPARQLJSONResultDecoder().decode(data)
             try assertBindings(result, testCase: testCase)
 
         case .decodeJSONBoolean:
             let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLJSONResultDecoder().decodeQueryResult(data)
+            let result: SPARQLQueryResult = try SPARQLJSONResultDecoder().decode(data)
             guard case let .boolean(value) = result else {
                 throw SPARQLConformanceError.expectedBooleanResult(testCase.id)
             }
@@ -246,12 +242,12 @@ public struct SPARQLConformanceRunner {
 
         case .decodeXMLBindings:
             let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLXMLResultDecoder().decode(data)
+            let result: SPARQLResultSet = try SPARQLXMLResultDecoder().decode(data)
             try assertBindings(result, testCase: testCase)
 
         case .decodeXMLBoolean:
             let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLXMLResultDecoder().decodeQueryResult(data)
+            let result: SPARQLQueryResult = try SPARQLXMLResultDecoder().decode(data)
             guard case let .boolean(value) = result else {
                 throw SPARQLConformanceError.expectedBooleanResult(testCase.id)
             }
@@ -263,12 +259,12 @@ public struct SPARQLConformanceRunner {
 
         case .decodeCSVBindings:
             let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLDelimitedResultsDecoder().decodeCSV(data)
+            let result = try SPARQLCSVResultDecoder().decode(data)
             try assertBindings(result, testCase: testCase)
 
         case .decodeTSVBindings:
             let data = try fixtureData(for: testCase, loadFixture: loadFixture)
-            let result = try SPARQLDelimitedResultsDecoder().decodeTSV(data)
+            let result = try SPARQLTSVResultDecoder().decode(data)
             try assertBindings(result, testCase: testCase)
 
         case .renderQuery:

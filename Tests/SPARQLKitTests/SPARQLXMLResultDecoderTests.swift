@@ -8,7 +8,7 @@ struct SPARQLXMLResultDecoderTests {
 
     @Test("Bindings decode into terms")
     func decodesBindings() throws {
-        let result = try decoder.decode(try fixture("select_result_xml.xml"))
+        let result: SPARQLResultSet = try decoder.decode(try fixture("select_result_xml.xml"))
 
         #expect(result.variables == ["name", "count"])
         #expect(result.bindings.count == 2)
@@ -19,14 +19,14 @@ struct SPARQLXMLResultDecoderTests {
 
     @Test("An ASK result decodes to its boolean")
     func decodesBoolean() throws {
-        #expect(try decoder.decodeQueryResult(try fixture("ask_result_true.xml")) == .boolean(true))
+        #expect(try (decoder.decode(try fixture("ask_result_true.xml")) as SPARQLQueryResult) == .boolean(true))
     }
 
     @Test("Asking for bindings from a boolean document fails")
     func bindingsFromBooleanFails() throws {
         let data = try fixture("ask_result_true.xml")
         #expect(throws: SPARQLError.decodingFailure("Expected bindings payload, found boolean ASK result.")) {
-            _ = try decoder.decode(data)
+            _ = try decoder.decode(data) as SPARQLResultSet
         }
     }
 
@@ -34,7 +34,7 @@ struct SPARQLXMLResultDecoderTests {
     func mixedDocumentFails() throws {
         let data = try fixture("invalid_mixed_result.xml")
         #expect(throws: SPARQLError.decodingFailure("Invalid mixed XML result payload.")) {
-            _ = try decoder.decodeQueryResult(data)
+            _ = try (decoder.decode(data) as SPARQLQueryResult)
         }
     }
 
@@ -69,7 +69,7 @@ struct SPARQLXMLResultDecoderTests {
         </sparql>
         """
         #expect(throws: SPARQLError.decodingFailure("<relative/iri> is not an absolute IRI.")) {
-            _ = try decoder.decode(Data(payload.utf8))
+            _ = try decoder.decode(Data(payload.utf8)) as SPARQLResultSet
         }
     }
 }

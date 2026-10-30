@@ -183,12 +183,11 @@ struct SPARQLQueryRenderingTests {
 
     @Test("Literals render with escapes, language tags, base directions and datatypes")
     func literalsRender() throws {
-        let writer = SPARQLTermWriter()
-        #expect(writer.write(Literal("quote=\" slash=\\ newline=\n")) == #""quote=\" slash=\\ newline=\n""#)
-        #expect(writer.write(try Literal("42", datatype: XSD.integer.metadata.id)) == #""42"^^<http://www.w3.org/2001/XMLSchema#integer>"#)
-        #expect(writer.write(try Literal("bonjour", languageTag: "fr")) == #""bonjour"@fr"#)
-        #expect(writer.write(try Literal("chat", languageTag: "fr", baseDirection: .ltr)) == #""chat"@fr--ltr"#)
-        #expect(writer.write(Literal("café é")) == "\"café é\"")
+        #expect(Literal("quote=\" slash=\\ newline=\n").render() == #""quote=\" slash=\\ newline=\n""#)
+        #expect((try Literal("42", datatype: XSD.integer.metadata.id)).render() == #""42"^^<http://www.w3.org/2001/XMLSchema#integer>"#)
+        #expect((try Literal("bonjour", languageTag: "fr")).render() == #""bonjour"@fr"#)
+        #expect((try Literal("chat", languageTag: "fr", baseDirection: .ltr)).render() == #""chat"@fr--ltr"#)
+        #expect(Literal("café é").render() == "\"café é\"")
     }
 
     @Test("A triple term pattern renders as <<( s p o )>>")

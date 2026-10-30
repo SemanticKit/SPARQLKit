@@ -55,16 +55,15 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
     }
 
     func render() -> String {
-        let writer = SPARQLTermWriter()
         switch self {
         case .variable(let variable):
-            return writer.write(variable)
+            return variable.render()
         case .term(let term):
-            return writer.write(term)
+            return term.render()
         case .iri(let iri):
-            return writer.write(iri)
+            return iri.render()
         case .literal(let literal):
-            return writer.write(literal)
+            return literal.render()
         case .unary(let op, let operand):
             return op.rawValue + "(" + operand.render() + ")"
         case .binary(let lhs, let op, let rhs):
@@ -76,13 +75,13 @@ public indirect enum SPARQLExpression: Hashable, Sendable {
         case .builtIn(let function, let arguments):
             return function.rawValue + "(" + arguments.map { $0.render() }.joined(separator: ", ") + ")"
         case .function(let function, let arguments):
-            return writer.write(function) + "(" + arguments.map { $0.render() }.joined(separator: ", ") + ")"
+            return function.render() + "(" + arguments.map { $0.render() }.joined(separator: ", ") + ")"
         case .aggregate(let aggregate, let distinct, let operand):
             var text = aggregate.keyword + "("
             if distinct { text += "DISTINCT " }
             text += operand?.render() ?? "*"
             if case .groupConcat(let separator?) = aggregate {
-                text += "; SEPARATOR=" + writer.quoted(separator)
+                text += "; SEPARATOR=" + Literal(separator).render()
             }
             return text + ")"
         case .exists(let patterns):

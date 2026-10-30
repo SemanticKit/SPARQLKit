@@ -72,13 +72,12 @@ public indirect enum SPARQLPatternTerm: Hashable, Sendable {
     }
 
     func render() -> String {
-        let writer = SPARQLTermWriter()
         switch self {
-        case .variable(let variable): return writer.write(variable)
-        case .term(let term): return writer.write(term)
-        case .iri(let iri): return writer.write(iri)
-        case .blankNode(let node): return writer.write(node)
-        case .literal(let literal): return writer.write(literal)
+        case .variable(let variable): return variable.render()
+        case .term(let term): return term.render()
+        case .iri(let iri): return iri.render()
+        case .blankNode(let node): return node.render()
+        case .literal(let literal): return literal.render()
         case .tripleTerm(let subject, let predicate, let object):
             return "<<( " + subject.render() + " " + predicate.render() + " " + object.render() + " )>>"
         }

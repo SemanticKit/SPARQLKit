@@ -24,9 +24,9 @@ public enum SPARQLVerb: Hashable, Sendable {
 
     func render() -> String {
         switch self {
-        case .variable(let variable): SPARQLTermWriter().write(variable)
+        case .variable(let variable): variable.render()
         case .a: "a"
-        case .property(let property): SPARQLTermWriter().write(property)
+        case .property(let property): property.render()
         case .path(let path): path.render()
         }
     }

@@ -17,8 +17,8 @@ public enum SPARQLGraphName: Hashable, Sendable {
 
     func render() -> String {
         switch self {
-        case .iri(let iri): SPARQLTermWriter().write(iri)
-        case .variable(let variable): SPARQLTermWriter().write(variable)
+        case .iri(let iri): iri.render()
+        case .variable(let variable): variable.render()
         }
     }
 }

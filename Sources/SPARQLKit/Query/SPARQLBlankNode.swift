@@ -21,6 +21,11 @@ public struct SPARQLBlankNode: Hashable, Sendable {
         self.label = String(label)
     }
 
+    /// This blank node in SPARQL text, `_:label`.
+    func render() -> String {
+        "_:" + label
+    }
+
     /// `BLANK_NODE_LABEL ::= '_:' ( PN_CHARS_U | [0-9] ) ((PN_CHARS|'.')* PN_CHARS)?`
     static func isLabel(_ label: Substring) -> Bool {
         let scalars = label.unicodeScalars

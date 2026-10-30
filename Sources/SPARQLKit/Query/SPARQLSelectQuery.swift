@@ -57,7 +57,6 @@ public struct SPARQLSelectQuery: SPARQLResultsQuery, Hashable {
     }
 
     func render(into lines: inout SPARQLLines, asSubquery: Bool = true) {
-        let writer = SPARQLTermWriter()
         var select = "SELECT"
         if distinct {
             select += " DISTINCT"
@@ -67,12 +66,12 @@ public struct SPARQLSelectQuery: SPARQLResultsQuery, Hashable {
         select += projection.isEmpty ? " *" : " " + projection.map { $0.render() }.joined(separator: " ")
         lines.append(select)
         if !asSubquery {
-            for graph in fromGraphs { lines.append("FROM " + writer.write(graph)) }
-            for graph in fromNamedGraphs { lines.append("FROM NAMED " + writer.write(graph)) }
+            for graph in fromGraphs { lines.append("FROM " + graph.render()) }
+            for graph in fromNamedGraphs { lines.append("FROM NAMED " + graph.render()) }
         }
         lines.block("WHERE") { SPARQLPattern.render(patterns, into: &$0) }
         if !groupBy.isEmpty {
-            lines.append("GROUP BY " + groupBy.map(writer.write).joined(separator: " "))
+            lines.append("GROUP BY " + groupBy.map { $0.render() }.joined(separator: " "))
         }
         if !having.isEmpty {
             lines.append("HAVING " + having.map { "(" + $0.render() + ")" }.joined(separator: " "))

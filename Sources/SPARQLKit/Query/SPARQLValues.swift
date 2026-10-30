@@ -25,15 +25,14 @@ public struct SPARQLValues: Hashable, Sendable {
     }
 
     func render(into lines: inout SPARQLLines) {
-        let writer = SPARQLTermWriter()
         func cell(_ term: SPARQLPatternTerm?) -> String { term?.render() ?? "UNDEF" }
         if variables.count == 1 {
-            lines.block("VALUES " + writer.write(variables[0])) { lines in
+            lines.block("VALUES " + variables[0].render()) { lines in
                 for row in rows { lines.append(cell(row[0])) }
             }
             return
         }
-        lines.block("VALUES (" + variables.map(writer.write).joined(separator: " ") + ")") { lines in
+        lines.block("VALUES (" + variables.map { $0.render() }.joined(separator: " ") + ")") { lines in
             for row in rows { lines.append("(" + row.map(cell).joined(separator: " ") + ")") }
         }
     }

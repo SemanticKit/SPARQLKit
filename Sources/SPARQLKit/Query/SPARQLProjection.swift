@@ -19,9 +19,9 @@ public enum SPARQLProjection: Hashable, Sendable, ExpressibleByStringLiteral {
     func render() -> String {
         switch self {
         case .variable(let variable):
-            SPARQLTermWriter().write(variable)
+            variable.render()
         case .expression(let expression, let variable):
-            "(" + expression.render() + " AS " + SPARQLTermWriter().write(variable) + ")"
+            "(" + expression.render() + " AS " + variable.render() + ")"
         }
     }
 }

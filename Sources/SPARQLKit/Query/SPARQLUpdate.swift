@@ -11,7 +11,7 @@ public enum SPARQLGraphTarget: Hashable, Sendable {
     func render() -> String {
         switch self {
         case .default: "DEFAULT"
-        case .named(let iri): "GRAPH " + SPARQLTermWriter().write(iri)
+        case .named(let iri): "GRAPH " + iri.render()
         case .all: "ALL"
         case .allNamed: "NAMED"
         }
@@ -27,7 +27,7 @@ public enum SPARQLGraphReference: Hashable, Sendable {
     func render() -> String {
         switch self {
         case .default: "DEFAULT"
-        case .named(let iri): "GRAPH " + SPARQLTermWriter().write(iri)
+        case .named(let iri): "GRAPH " + iri.render()
         }
     }
 }
@@ -92,12 +92,11 @@ public enum SPARQLUpdateOperation: Hashable, Sendable {
     }
 
     func render() -> String {
-        let writer = SPARQLTermWriter()
         var lines = SPARQLLines()
         func data(_ keyword: String, _ triples: [SPARQLTriplePattern], _ graph: IRI?) {
             lines.block(keyword) { lines in
                 if let graph {
-                    lines.block("GRAPH " + writer.write(graph)) { lines in
+                    lines.block("GRAPH " + graph.render()) { lines in
                         for triple in triples { lines.append(triple.render()) }
                     }
                 } else {
@@ -113,7 +112,7 @@ public enum SPARQLUpdateOperation: Hashable, Sendable {
         case .deleteData(let triples, let graph):
             data("DELETE DATA", triples, graph)
         case .modify(let with, let delete, let insert, let patterns):
-            if let with { lines.append("WITH " + writer.write(with)) }
+            if let with { lines.append("WITH " + with.render()) }
             if !delete.isEmpty {
                 lines.block("DELETE") { lines in for pattern in delete { lines.append(pattern.render()) } }
             }
@@ -122,11 +121,11 @@ public enum SPARQLUpdateOperation: Hashable, Sendable {
             }
             lines.block("WHERE") { SPARQLPattern.render(patterns, into: &$0) }
         case .load(let source, let graph, let silent):
-            lines.append("LOAD " + silence(silent) + writer.write(source) + (graph.map { " INTO GRAPH " + writer.write($0) } ?? ""))
+            lines.append("LOAD " + silence(silent) + source.render() + (graph.map { " INTO GRAPH " + $0.render() } ?? ""))
         case .clear(let target, let silent):
             lines.append("CLEAR " + silence(silent) + target.render())
         case .create(let graph, let silent):
-            lines.append("CREATE " + silence(silent) + "GRAPH " + writer.write(graph))
+            lines.append("CREATE " + silence(silent) + "GRAPH " + graph.render())
         case .drop(let target, let silent):
             lines.append("DROP " + silence(silent) + target.render())
         case .copy(let from, let to, let silent):

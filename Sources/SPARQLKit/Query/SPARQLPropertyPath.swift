@@ -20,7 +20,7 @@ public indirect enum SPARQLPropertyPath: Hashable, Sendable {
     func render() -> String {
         switch self {
         case .property(let property):
-            return SPARQLTermWriter().write(property)
+            return property.render()
         case .inverse(let path):
             return "^" + path.renderUnaryOperand()
         case .sequence(let parts):
@@ -64,8 +64,8 @@ public enum SPARQLNegatedPathMember: Hashable, Sendable {
 
     func render() -> String {
         switch self {
-        case .property(let property): SPARQLTermWriter().write(property)
-        case .inverse(let property): "^" + SPARQLTermWriter().write(property)
+        case .property(let property): property.render()
+        case .inverse(let property): "^" + property.render()
         }
     }
 }

@@ -13,11 +13,10 @@ public struct SPARQLAskQuery: SPARQLResultsQuery, Hashable {
     }
 
     public func render() -> String {
-        let writer = SPARQLTermWriter()
         var lines = SPARQLLines()
         lines.append("ASK")
-        for graph in fromGraphs { lines.append("FROM " + writer.write(graph)) }
-        for graph in fromNamedGraphs { lines.append("FROM NAMED " + writer.write(graph)) }
+        for graph in fromGraphs { lines.append("FROM " + graph.render()) }
+        for graph in fromNamedGraphs { lines.append("FROM NAMED " + graph.render()) }
         lines.block("WHERE") { SPARQLPattern.render(patterns, into: &$0) }
         return lines.text
     }

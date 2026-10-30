@@ -23,10 +23,6 @@ public struct SPARQLW3CManifestIndex: Codable, Sendable {
         manifests = try container.decode([String].self, forKey: .manifests)
         expectedFailures = try container.decodeIfPresent([String].self, forKey: .expectedFailures) ?? []
     }
-
-    public static func decode(from data: Data) throws -> SPARQLW3CManifestIndex {
-        try JSONDecoder().decode(SPARQLW3CManifestIndex.self, from: data)
-    }
 }
 
 public struct SPARQLConformanceExecutionPlan: Sendable {
@@ -45,7 +41,7 @@ public extension SPARQLW3CManifestLoader {
         baseURL: URL?,
         loadManifestFile: @escaping (String) throws -> Data
     ) throws -> SPARQLConformanceSuite {
-        let index = try SPARQLW3CManifestIndex.decode(from: data)
+        let index = try JSONDecoder().decode(SPARQLW3CManifestIndex.self, from: data)
         return try loadSuite(fromIndex: index, baseURL: baseURL, loadManifestFile: loadManifestFile)
     }
 
@@ -54,7 +50,7 @@ public extension SPARQLW3CManifestLoader {
         baseURL: URL?,
         loadManifestFile: @escaping (String) throws -> Data
     ) throws -> SPARQLConformanceExecutionPlan {
-        let index = try SPARQLW3CManifestIndex.decode(from: data)
+        let index = try JSONDecoder().decode(SPARQLW3CManifestIndex.self, from: data)
         return try loadPlan(fromIndex: index, baseURL: baseURL, loadManifestFile: loadManifestFile)
     }
 

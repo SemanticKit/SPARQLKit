@@ -131,7 +131,7 @@ struct SPARQLW3CManifestLoaderTests {
         """
 
         let indexData = Data(indexJSON.utf8)
-        let index = try SPARQLW3CManifestIndex.decode(from: indexData)
+        let index = try JSONDecoder().decode(SPARQLW3CManifestIndex.self, from: indexData)
         #expect(index.name == "index-without-failures")
         #expect(index.manifests.count == 1)
         #expect(index.expectedFailures.isEmpty)

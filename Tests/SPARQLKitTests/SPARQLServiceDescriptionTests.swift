@@ -54,12 +54,32 @@ struct SPARQLServiceDescriptionTests {
     }
 
     @Test("Vocabulary IRIs decode back to their individuals", .tags(.vocabulary))
-    func vocabularyIRIsDecode() {
-        #expect(ServiceDescription.decodeLanguage("http://www.w3.org/ns/sparql-service-description#SPARQL11Update") === ServiceDescription.SPARQL11Update)
-        #expect(ServiceDescription.decodeFeature("http://www.w3.org/ns/sparql-service-description#SPARQL12Query") === ServiceDescription.SPARQL12Query)
-        #expect(Formats.decodeFormat("http://www.w3.org/ns/formats/N-Triples") === Formats.N_Triples)
-        #expect(Entailment.decodeRegime("http://www.w3.org/ns/entailment/OWL-Direct") === Entailment.OWL_Direct)
-        #expect(Entailment.decodeRegime("http://www.w3.org/ns/entailment/Unknown") == nil)
+    func vocabularyIRIsDecode() throws {
+        let description = try SPARQLServiceDescriptionDecoder().decode("""
+            @prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+            @prefix formats: <http://www.w3.org/ns/formats/> .
+            @prefix entailment: <http://www.w3.org/ns/entailment/> .
+            <https://example.org/sparql> a sd:Service ;
+              sd:supportedLanguage sd:SPARQL11Update ;
+              sd:feature sd:SPARQL12Query ;
+              sd:resultFormat formats:N-Triples ;
+              sd:entailmentRegime entailment:OWL-Direct , entailment:Unknown .
+            """)
+        #expect(description.supportedLanguages.count == 1)
+        #expect(description.supportedLanguages.first === ServiceDescription.SPARQL11Update)
+        #expect(description.features.count == 1)
+        #expect(description.features.first === ServiceDescription.SPARQL12Query)
+        #expect(description.resultFormats.count == 1)
+        #expect(description.resultFormats.first === Formats.N_Triples)
+        #expect(description.entailmentRegimes.count == 1)
+        #expect(description.entailmentRegimes.first === Entailment.OWL_Direct)
+    }
+
+    @Test("An IRI names the declared individual whose type carries it", .tags(.vocabulary))
+    func iriNamesDeclaredIndividual() {
+        let regimes: [any ServiceDescription.EntailmentRegime] = [Entailment.RDFS, Entailment.OWL_Direct]
+        #expect(regimes.individual(named: "http://www.w3.org/ns/entailment/OWL-Direct") === Entailment.OWL_Direct)
+        #expect(regimes.individual(named: "http://www.w3.org/ns/entailment/Unknown") == nil)
     }
 
     @Test("Every entailment regime is an individual of sd:EntailmentRegime", .tags(.vocabulary))
@@ -81,7 +101,11 @@ struct SPARQLServiceDescriptionTests {
               sd:defaultEntailmentRegime formats:Turtle , sd:SPARQL12Query .
             """
         #expect(try SPARQLServiceDescriptionDecoder().decode(turtle).entailmentRegimes.isEmpty)
-        #expect(Entailment.decodeRegime(type(of: Formats.Turtle).metadata.id) == nil)
+        let regimes: [any ServiceDescription.EntailmentRegime] = [
+            Entailment.Simple, Entailment.RDF, Entailment.RDFS, Entailment.D,
+            Entailment.OWL_Direct, Entailment.OWL_RDF_Based, Entailment.RIF
+        ]
+        #expect(regimes.individual(named: type(of: Formats.Turtle).metadata.id) == nil)
         #expect(!(Formats.Turtle is any ServiceDescription.EntailmentRegime))
         #expect(!(ServiceDescription.SPARQL12Query is any ServiceDescription.EntailmentRegime))
     }

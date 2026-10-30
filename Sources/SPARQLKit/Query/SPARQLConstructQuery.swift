@@ -35,13 +35,12 @@ public struct SPARQLConstructQuery: SPARQLGraphQuery, Hashable {
     }
 
     public func render() -> String {
-        let writer = SPARQLTermWriter()
         var lines = SPARQLLines()
         lines.block("CONSTRUCT") { lines in
             for pattern in template { lines.append(pattern.render()) }
         }
-        for graph in fromGraphs { lines.append("FROM " + writer.write(graph)) }
-        for graph in fromNamedGraphs { lines.append("FROM NAMED " + writer.write(graph)) }
+        for graph in fromGraphs { lines.append("FROM " + graph.render()) }
+        for graph in fromNamedGraphs { lines.append("FROM NAMED " + graph.render()) }
         lines.block("WHERE") { SPARQLPattern.render(patterns, into: &$0) }
         if !orderBy.isEmpty {
             lines.append("ORDER BY " + orderBy.map { $0.render() }.joined(separator: " "))

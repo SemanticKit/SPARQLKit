@@ -17,13 +17,18 @@ public struct SPARQLDecodedQueryResult: Hashable, Sendable {
     }
 }
 
+/// Decodes SPARQL 1.2 Query Results JSON documents.
+///
+/// Each term in the document is read by an ``RDFCore/ObjectTerm``
+/// initializer as the document is decoded (SPARQL 1.2 Query Results JSON
+/// Format §3.2.2).
 public struct SPARQLJSONResultDecoder: Sendable {
     public init() {}
 
-    public func decodeQueryResultWithMetadata(
-        _ data: Data,
-        contentType: String? = nil
-    ) throws -> SPARQLDecodedQueryResult {
+    /// Decodes a results document, with the version it announces in its
+    /// `version` member or, failing that, in the `version` parameter of its
+    /// media type.
+    public func decode(_ data: Data, contentType: String?) throws -> SPARQLDecodedQueryResult {
         do {
             let response = try JSONDecoder().decode(JSONResultResponse.self, from: data)
             let announcedVersion = response.version ?? versionParameter(from: contentType)
@@ -39,11 +44,10 @@ public struct SPARQLJSONResultDecoder: Sendable {
                 throw SPARQLError.decodingFailure("Missing head/results in JSON bindings payload.")
             }
 
-            let terms = SPARQLResultTermDecoder()
-            let variables = try (head.vars ?? []).map(terms.variable)
+            let variables = try (head.vars ?? []).map(Variable.init(resultName:))
             let bindings = try results.bindings.map { row in
                 try row.reduce(into: Binding()) { partial, entry in
-                    partial[try terms.variable(entry.key)] = try entry.value.asTerm
+                    partial[try Variable(resultName: entry.key)] = try ObjectTerm(entry.value)
                 }
             }
             let resultSet = SPARQLResultSet(variables: variables, bindings: bindings, version: announcedVersion)
@@ -55,13 +59,18 @@ public struct SPARQLJSONResultDecoder: Sendable {
         }
     }
 
-    public func decodeQueryResult(_ data: Data) throws -> SPARQLQueryResult {
-        try decodeQueryResultWithMetadata(data).result
+    /// Decodes a results document: the solutions of a `SELECT` query or the
+    /// answer to an `ASK` query.
+    public func decode(_ data: Data) throws -> SPARQLQueryResult {
+        try (decode(data, contentType: nil) as SPARQLDecodedQueryResult).result
     }
 
+    /// Decodes the solutions of a `SELECT` query.
+    ///
+    /// - Throws: ``SPARQLError/decodingFailure(_:)`` when the document is
+    ///   the answer to an `ASK` query.
     public func decode(_ data: Data) throws -> SPARQLResultSet {
-        let queryResult = try decodeQueryResult(data)
-        switch queryResult {
+        switch try decode(data) as SPARQLQueryResult {
         case let .bindings(resultSet):
             return resultSet
         case .boolean:
@@ -131,30 +140,36 @@ private final class JSONBindingValue: Decodable {
         case language = "xml:lang"
         case direction = "its:dir"
     }
+}
 
-    var asTerm: ObjectTerm {
-        get throws {
-            let terms = SPARQLResultTermDecoder()
-            switch (type, value) {
-            case ("uri", .string(let value)):
-                return try terms.iri(value)
-            case ("bnode", .string(let value)):
-                return try terms.blankNode(value)
-            case ("triple", .triple(let triple)):
-                return try terms.triple(
-                    subject: triple.subject.asTerm,
-                    predicate: triple.predicate.asTerm,
-                    object: triple.object.asTerm
-                )
-            case ("literal", .string(let value)):
-                return try terms.literal(value, datatype: datatype, language: language, direction: direction)
-            case ("triple", _):
-                throw SPARQLError.decodingFailure("A triple term value must be an object.")
-            case ("uri", _), ("bnode", _), ("literal", _):
-                throw SPARQLError.decodingFailure("A \(type) value must be a string.")
-            default:
-                throw SPARQLError.decodingFailure("'\(type)' is not a term type.")
-            }
+extension ObjectTerm {
+    /// A term in a JSON results document: an object whose `type` says which
+    /// kind of term it is (SPARQL 1.2 Query Results JSON Format §3.2.2).
+    fileprivate init(_ value: JSONBindingValue) throws {
+        switch (value.type, value.value) {
+        case ("uri", .string(let text)):
+            try self.init(iri: text)
+        case ("bnode", .string(let label)):
+            try self.init(blankNode: label)
+        case ("triple", .triple(let triple)):
+            try self.init(
+                tripleTermSubject: try ObjectTerm(triple.subject),
+                predicate: try ObjectTerm(triple.predicate),
+                object: try ObjectTerm(triple.object)
+            )
+        case ("literal", .string(let lexicalForm)):
+            try self.init(
+                literal: lexicalForm,
+                datatype: value.datatype,
+                language: value.language,
+                direction: value.direction
+            )
+        case ("triple", _):
+            throw SPARQLError.decodingFailure("A triple term value must be an object.")
+        case ("uri", _), ("bnode", _), ("literal", _):
+            throw SPARQLError.decodingFailure("A \(value.type) value must be a string.")
+        default:
+            throw SPARQLError.decodingFailure("'\(value.type)' is not a term type.")
         }
     }
 }

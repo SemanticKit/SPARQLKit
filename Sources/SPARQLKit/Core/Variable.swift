@@ -23,6 +23,21 @@ public struct Variable: Hashable, Comparable, Sendable, Codable, ExpressibleBySt
         self.name = String(name)
     }
 
+    /// A variable named in a results document's header or binding.
+    ///
+    /// A name that is not a `VARNAME` (§19.8) is rejected here, so no results
+    /// document can put text into a later query through a variable.
+    ///
+    /// - Throws: ``SPARQLError/decodingFailure(_:)`` when the name is not a
+    ///   `VARNAME`.
+    init(resultName name: String) throws {
+        do {
+            try self.init(name)
+        } catch {
+            throw SPARQLError.decodingFailure("'\(name)' is not a SPARQL variable name.")
+        }
+    }
+
     /// A variable written in source. An invalid name is a programming error.
     public init(stringLiteral value: String) {
         do {
@@ -47,6 +62,11 @@ public struct Variable: Hashable, Comparable, Sendable, Codable, ExpressibleBySt
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(name)
+    }
+
+    /// This variable in SPARQL text, `?name` (§19.8, `VAR1`).
+    func render() -> String {
+        "?" + name
     }
 
     public static func < (lhs: Variable, rhs: Variable) -> Bool {

@@ -8,8 +8,8 @@ import RDFCore
 /// (`Foaf.PersonIndividual.sparql`), a datatype (`XSD.integer.sparql`) or a
 /// named individual (`SPARQLTerm(Fauna.carnivore)`). Two terms are equal when
 /// they are the same type. The term's IRI is its type's static
-/// ``RDFCore/Entity/metadata``, read only when ``SPARQLTermWriter`` writes
-/// the query text.
+/// ``RDFCore/Entity/metadata``, read only when the term is rendered into
+/// query text.
 public struct SPARQLTerm: Hashable, Sendable {
     private let entity: any RDFCore.Entity.Type
 
@@ -23,9 +23,15 @@ public struct SPARQLTerm: Hashable, Sendable {
         self.init(entity: type(of: individual))
     }
 
-    /// The IRI SPARQL text names the term by. Read only by the writer.
+    /// The IRI SPARQL text names the term by. Read only when the term is
+    /// rendered.
     var iri: IRI {
         entity.metadata.id
+    }
+
+    /// This term in SPARQL text: its IRI as an `IRIREF`.
+    func render() -> String {
+        iri.render()
     }
 
     public static func == (lhs: SPARQLTerm, rhs: SPARQLTerm) -> Bool {

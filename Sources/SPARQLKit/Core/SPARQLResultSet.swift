@@ -22,6 +22,26 @@ public struct SPARQLResultSet: Hashable, Sendable {
         self.bindings = bindings
         self.version = version
     }
+
+    /// The solutions of a CSV or TSV results document, already split into
+    /// records and fields (SPARQL 1.2 Query Results CSV and TSV Formats §2):
+    /// the first record names the variables, and an empty field is an
+    /// unbound variable. `term` reads one field in the format's term syntax.
+    init(delimitedRows rows: [[String]], term: (String) throws -> ObjectTerm) throws {
+        guard let header = rows.first, !header.allSatisfy(\.isEmpty) else {
+            throw SPARQLError.decodingFailure("Missing header row.")
+        }
+        let variables = try header.map(Variable.init(resultName:))
+        var bindings: [Binding] = []
+        for row in rows.dropFirst() where !row.allSatisfy(\.isEmpty) {
+            var binding: Binding = [:]
+            for (variable, field) in zip(variables, row) where !field.isEmpty {
+                binding[variable] = try term(field)
+            }
+            bindings.append(binding)
+        }
+        self.init(variables: variables, bindings: bindings)
+    }
 }
 
 extension Dictionary where Key == Variable, Value == ObjectTerm {
@@ -34,7 +54,7 @@ extension Dictionary where Key == Variable, Value == ObjectTerm {
     /// than an IRI, or names none of the candidates.
     public func individual<Individual>(_ variable: Variable, among candidates: [Individual]) -> Individual? {
         guard case .iri(let iri)? = self[variable] else { return nil }
-        return SPARQLResultTermDecoder().individual(named: iri, among: candidates)
+        return candidates.individual(named: iri)
     }
 
     /// Whether the IRI bound to `variable` names this declared term.

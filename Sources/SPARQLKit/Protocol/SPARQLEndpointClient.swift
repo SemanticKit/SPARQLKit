@@ -137,7 +137,7 @@ public struct SPARQLEndpointClient: Sendable {
         let data = try await executeQuery(
             query, accept: .jsonResults, method: method, options: options, serviceDescription: serviceDescription
         )
-        guard case .boolean(let value) = try SPARQLJSONResultDecoder().decodeQueryResult(data) else {
+        guard case .boolean(let value) = try SPARQLJSONResultDecoder().decode(data) as SPARQLQueryResult else {
             throw SPARQLError.decodingFailure("Expected ASK boolean result payload.")
         }
         return value

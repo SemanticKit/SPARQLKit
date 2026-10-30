@@ -25,17 +25,17 @@ struct SPARQLGrammarValidationTests {
     func resultHeadersCannotInject() {
         let json = #"{"head":{"vars":["s } DROP ALL #"]},"results":{"bindings":[]}}"#
         #expect(throws: SPARQLError.decodingFailure("'s } DROP ALL #' is not a SPARQL variable name.")) {
-            try SPARQLJSONResultDecoder().decode(Data(json.utf8))
+            try SPARQLJSONResultDecoder().decode(Data(json.utf8)) as SPARQLResultSet
         }
         let binding = #"{"head":{"vars":["s"]},"results":{"bindings":[{"s }":{"type":"literal","value":"x"}}]}}"#
-        #expect(throws: SPARQLError.self) { try SPARQLJSONResultDecoder().decode(Data(binding.utf8)) }
+        #expect(throws: SPARQLError.self) { try SPARQLJSONResultDecoder().decode(Data(binding.utf8)) as SPARQLResultSet }
         let xml = """
             <?xml version="1.0"?>
             <sparql xmlns="http://www.w3.org/2005/sparql-results#"><head><variable name="a b"/></head><results/></sparql>
             """
-        #expect(throws: SPARQLError.self) { try SPARQLXMLResultDecoder().decode(Data(xml.utf8)) }
-        #expect(throws: SPARQLError.self) { try SPARQLDelimitedResultsDecoder().decodeCSV(Data("a b\r\nx\r\n".utf8)) }
-        #expect(throws: SPARQLError.self) { try SPARQLDelimitedResultsDecoder().decodeTSV(Data("?a}\n\"x\"\n".utf8)) }
+        #expect(throws: SPARQLError.self) { try SPARQLXMLResultDecoder().decode(Data(xml.utf8)) as SPARQLResultSet }
+        #expect(throws: SPARQLError.self) { try SPARQLCSVResultDecoder().decode(Data("a b\r\nx\r\n".utf8)) }
+        #expect(throws: SPARQLError.self) { try SPARQLTSVResultDecoder().decode(Data("?a}\n\"x\"\n".utf8)) }
     }
 
     @Test("A blank node label must be a BLANK_NODE_LABEL", arguments: ["a b.", "", "x.", ".x", "-x", "a}"])

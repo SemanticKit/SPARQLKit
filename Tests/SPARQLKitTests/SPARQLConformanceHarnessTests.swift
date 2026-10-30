@@ -8,7 +8,7 @@ struct SPARQLConformanceHarnessTests {
 
     @Test("The smoke suite passes")
     func smokeSuitePasses() throws {
-        let suite = try SPARQLConformanceSuite.decode(from: try fixture("conformance_smoke_suite.json"))
+        let suite = try JSONDecoder().decode(SPARQLConformanceSuite.self, from: try fixture("conformance_smoke_suite.json"))
         let report = runner.run(suite: suite, loadFixture: fixture)
 
         #expect(report.results.count == 5)

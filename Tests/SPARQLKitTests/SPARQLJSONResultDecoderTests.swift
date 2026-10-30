@@ -8,7 +8,7 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("Bindings decode into terms")
     func decodesBindings() throws {
-        let result = try decoder.decode(try fixture("select_result.json"))
+        let result: SPARQLResultSet = try decoder.decode(try fixture("select_result.json"))
 
         #expect(result.variables == ["name", "count"])
         #expect(result.bindings.count == 3)
@@ -19,19 +19,19 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("An ASK result decodes to its boolean")
     func decodesBoolean() throws {
-        #expect(try decoder.decodeQueryResult(try fixture("ask_result_true.json")) == .boolean(true))
+        #expect(try (decoder.decode(try fixture("ask_result_true.json")) as SPARQLQueryResult) == .boolean(true))
     }
 
     @Test("An ASK result whose head has no vars decodes")
     func askWithEmptyHead() throws {
-        #expect(try decoder.decodeQueryResult(Data(#"{"head":{},"boolean":false}"#.utf8)) == .boolean(false))
+        #expect(try (decoder.decode(Data(#"{"head":{},"boolean":false}"#.utf8)) as SPARQLQueryResult) == .boolean(false))
     }
 
     @Test("Asking for bindings from a boolean document fails")
     func bindingsFromBooleanFails() throws {
         let data = try fixture("ask_result_true.json")
         #expect(throws: SPARQLError.decodingFailure("Expected bindings payload, found boolean ASK result.")) {
-            _ = try decoder.decode(data)
+            _ = try decoder.decode(data) as SPARQLResultSet
         }
     }
 
@@ -39,13 +39,13 @@ struct SPARQLJSONResultDecoderTests {
     func mixedDocumentFails() throws {
         let data = try fixture("invalid_mixed_result.json")
         #expect(throws: SPARQLError.decodingFailure("Invalid mixed JSON result payload.")) {
-            _ = try decoder.decodeQueryResult(data)
+            _ = try (decoder.decode(data) as SPARQLQueryResult)
         }
     }
 
     @Test("IRIs, blank nodes, language-tagged and typed literals decode")
     func decodesEveryTermKind() throws {
-        let result = try decoder.decode(try fixture("term_coverage_result.json"))
+        let result: SPARQLResultSet = try decoder.decode(try fixture("term_coverage_result.json"))
 
         #expect(result.variables == ["u", "b", "lang", "typed"])
         let first = try #require(result.bindings.first)
@@ -67,17 +67,17 @@ struct SPARQLJSONResultDecoderTests {
     func decodesVersion() throws {
         #expect(try decoder.decode(try fixture("select_result_with_version.json")).version == "1.2")
 
-        let fromDocument = try decoder.decodeQueryResultWithMetadata(try fixture("ask_result_true_with_version.json"))
+        let fromDocument = try decoder.decode(try fixture("ask_result_true_with_version.json"), contentType: nil)
         #expect(fromDocument.version == "1.2")
         #expect(fromDocument.result == .boolean(true))
 
-        let fromMediaType = try decoder.decodeQueryResultWithMetadata(
+        let fromMediaType = try decoder.decode(
             try fixture("ask_result_true.json"),
             contentType: "application/sparql-results+json; charset=utf-8; version=1.2"
         )
         #expect(fromMediaType.version == "1.2")
 
-        let preferred = try decoder.decodeQueryResultWithMetadata(
+        let preferred = try decoder.decode(
             try fixture("ask_result_true_with_version.json"),
             contentType: "application/sparql-results+json; version=1.1"
         )
@@ -104,7 +104,7 @@ struct SPARQLJSONResultDecoderTests {
     func rejectsMalformedTerms(term: String) {
         let payload = #"{"head":{"vars":["x"]},"results":{"bindings":[{"x":"# + term + "}]}}"
         #expect(throws: SPARQLError.self) {
-            _ = try decoder.decode(Data(payload.utf8))
+            _ = try decoder.decode(Data(payload.utf8)) as SPARQLResultSet
         }
     }
 }

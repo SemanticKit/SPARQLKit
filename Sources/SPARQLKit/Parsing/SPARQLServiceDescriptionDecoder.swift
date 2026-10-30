@@ -20,51 +20,33 @@ public struct SPARQLServiceDescriptionDecoder: Sendable {
                 return iri
             }
         }
+        let languages: [any ServiceDescription.Language] = [
+            ServiceDescription.SPARQL10Query, ServiceDescription.SPARQL11Query, ServiceDescription.SPARQL11Update,
+            ServiceDescription.SPARQL12Query, ServiceDescription.SPARQL12Update
+        ]
+        let features: [any ServiceDescription.Feature] = [
+            ServiceDescription.DereferencesURIs, ServiceDescription.UnionDefaultGraph,
+            ServiceDescription.RequiresDataset, ServiceDescription.EmptyGraphs,
+            ServiceDescription.BasicFederatedQuery
+        ] + languages.map { $0 as any ServiceDescription.Feature }
+        let formats: [any Formats.Format] = [
+            Formats.JSON_LD, Formats.N3, Formats.N_Triples, Formats.N_Quads, Formats.LD_Patch, Formats.microdata,
+            Formats.OWL_XML, Formats.OWL_Functional, Formats.OWL_Manchester, Formats.POWDER, Formats.POWDER_S,
+            Formats.PROV_N, Formats.PROV_XML, Formats.RDF_JSON, Formats.RDF_XML, Formats.RIF_XML,
+            Formats.SPARQL_Results_XML, Formats.SPARQL_Results_JSON, Formats.SPARQL_Results_CSV,
+            Formats.SPARQL_Results_TSV, Formats.Turtle, Formats.TriG
+        ]
+        let regimes: [any ServiceDescription.EntailmentRegime] = [
+            Entailment.Simple, Entailment.RDF, Entailment.RDFS, Entailment.D,
+            Entailment.OWL_Direct, Entailment.OWL_RDF_Based, Entailment.RIF
+        ]
         return SPARQLServiceDescription(
             endpoints: objects(ServiceDescription.endpoint.metadata.id).compactMap { URL(string: $0.rawValue) },
-            supportedLanguages: objects(ServiceDescription.supportedLanguage.metadata.id).compactMap(ServiceDescription.decodeLanguage),
-            features: objects(ServiceDescription.feature.metadata.id).compactMap(ServiceDescription.decodeFeature),
-            resultFormats: objects(ServiceDescription.resultFormat.metadata.id).compactMap(Formats.decodeFormat),
+            supportedLanguages: objects(ServiceDescription.supportedLanguage.metadata.id).compactMap(languages.individual(named:)),
+            features: objects(ServiceDescription.feature.metadata.id).compactMap(features.individual(named:)),
+            resultFormats: objects(ServiceDescription.resultFormat.metadata.id).compactMap(formats.individual(named:)),
             entailmentRegimes: (objects(ServiceDescription.defaultEntailmentRegime.metadata.id)
-                + objects(ServiceDescription.entailmentRegime.metadata.id)).compactMap(Entailment.decodeRegime)
+                + objects(ServiceDescription.entailmentRegime.metadata.id)).compactMap(regimes.individual(named:))
         )
-    }
-}
-
-extension ServiceDescription {
-    /// The language an IRI names, decoded at the boundary.
-    public static func decodeLanguage(_ iri: IRI) -> (any ServiceDescription.Language)? {
-        SPARQLResultTermDecoder().individual(
-            named: iri,
-            among: [SPARQL10Query, SPARQL11Query, SPARQL11Update, SPARQL12Query, SPARQL12Update]
-        )
-    }
-
-    /// The feature an IRI names, decoded at the boundary.
-    public static func decodeFeature(_ iri: IRI) -> (any ServiceDescription.Feature)? {
-        let features: [any ServiceDescription.Feature] = [
-            DereferencesURIs, UnionDefaultGraph, RequiresDataset, EmptyGraphs, BasicFederatedQuery
-        ]
-        return SPARQLResultTermDecoder().individual(named: iri, among: features)
-            ?? decodeLanguage(iri).map { $0 as any ServiceDescription.Feature }
-    }
-}
-
-extension Formats {
-    /// The format an IRI names, decoded at the boundary.
-    public static func decodeFormat(_ iri: IRI) -> (any Formats.Format)? {
-        SPARQLResultTermDecoder().individual(named: iri, among: [
-            JSON_LD, N3, N_Triples, N_Quads, LD_Patch, microdata, OWL_XML, OWL_Functional,
-            OWL_Manchester, POWDER, POWDER_S, PROV_N, PROV_XML, RDF_JSON, RDF_XML, RIF_XML,
-            SPARQL_Results_XML, SPARQL_Results_JSON, SPARQL_Results_CSV, SPARQL_Results_TSV,
-            Turtle, TriG
-        ])
-    }
-}
-
-extension Entailment {
-    /// The entailment regime an IRI names, decoded at the boundary.
-    public static func decodeRegime(_ iri: IRI) -> (any ServiceDescription.EntailmentRegime)? {
-        SPARQLResultTermDecoder().individual(named: iri, among: [Simple, RDF, RDFS, D, OWL_Direct, OWL_RDF_Based, RIF])
     }
 }
