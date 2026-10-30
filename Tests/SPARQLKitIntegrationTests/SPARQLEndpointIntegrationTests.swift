@@ -56,7 +56,7 @@ struct SPARQLEndpointIntegrationTests {
     func graphStoreRoundTrip() async throws {
         let client = SPARQLGraphStoreClient(configuration: SPARQLGraphStoreConfiguration(graphStoreURL: try #require(Environment.graphStoreURL)))
         let graph = Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? "http://example.org/sparqlkit/graphstore"
-        let triple = DecodedTriple(subject: .iri("http://example.org/s"), predicate: Foaf.knows.metadata.id, object: .iri("http://example.org/o"))
+        let triple = Graph.Element(subject: .iri("http://example.org/s"), predicate: Foaf.knows.metadata.id, object: .iri("http://example.org/o"))
 
         _ = try await client.putGraph([triple], graph: .named(graph))
         #expect(try await client.getGraph(.named(graph)).contains(triple))

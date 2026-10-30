@@ -25,8 +25,8 @@ struct SPARQLResultTermDecoder {
     }
 
     func blankNode(_ label: String) throws -> ObjectTerm {
-        guard !label.isEmpty else { throw SPARQLError.decodingFailure("A blank node needs a label.") }
-        return .blankNode(BlankNode(rawValue: label))
+        guard let node = try? BlankNode(label) else { throw SPARQLError.decodingFailure("A blank node needs a label.") }
+        return .blankNode(node)
     }
 
     /// A literal from its lexical form and the optional datatype, language
@@ -38,22 +38,22 @@ struct SPARQLResultTermDecoder {
     func literal(_ lexicalForm: String, datatype: String?, language: String?, direction: String?) throws -> ObjectTerm {
         if let language {
             guard !language.isEmpty else { throw SPARQLError.decodingFailure("A language tag cannot be empty.") }
-            var textDirection: TextDirection?
+            var baseDirection: BaseDirection?
             if let direction {
-                guard let value = TextDirection(rawValue: direction.lowercased()) else {
+                guard let value = BaseDirection(rawValue: direction.lowercased()) else {
                     throw SPARQLError.decodingFailure("'\(direction)' is not a base direction.")
                 }
-                textDirection = value
+                baseDirection = value
             }
-            return .literal(try Literal(lexicalForm, languageTag: language, textDirection: textDirection))
+            return .literal(try Literal(lexicalForm, languageTag: language, baseDirection: baseDirection))
         }
         guard direction == nil else {
             throw SPARQLError.decodingFailure("Only a language-tagged string has a base direction.")
         }
-        guard let datatype else { return .literal(try Literal(lexicalForm)) }
+        guard let datatype else { return .literal(Literal(lexicalForm)) }
         let datatypeIRI = try decodeIRI(datatype)
         if datatypeIRI == XSD.string.metadata.id {
-            return .literal(try Literal(lexicalForm))
+            return .literal(Literal(lexicalForm))
         }
         if datatypeIRI == RDF.langString.metadata.id || datatypeIRI == RDF.dirLangString.metadata.id {
             throw SPARQLError.decodingFailure("A language-tagged string needs a language tag.")
@@ -69,7 +69,7 @@ struct SPARQLResultTermDecoder {
         guard case .iri(let predicate) = predicate else {
             throw SPARQLError.decodingFailure("A triple term's predicate must be an IRI.")
         }
-        return .tripleTerm(TripleTermValue(subject: subject, predicate: predicate, object: object))
+        return .tripleTerm(Triple(subject: subject, predicate: predicate, object: object))
     }
 
     /// The declared individual among `candidates` that an IRI names: the

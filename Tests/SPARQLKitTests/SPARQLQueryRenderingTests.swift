@@ -87,7 +87,7 @@ struct SPARQLQueryRenderingTests {
                 pattern("s", Foaf.name.sparql, "o"),
                 .values(try SPARQLValues(
                     variables: ["s", "o"],
-                    rows: [[.iri("http://example.org/a"), .literal(try Literal("one"))], [nil, .literal(try Literal("two"))]]
+                    rows: [[.iri("http://example.org/a"), .literal(Literal("one"))], [nil, .literal(Literal("two"))]]
                 ))
             ],
             groupBy: ["s"],
@@ -171,7 +171,7 @@ struct SPARQLQueryRenderingTests {
         let cast = SPARQLExpression.function(XSD.integer.sparql, [.variable("n")])
         #expect(cast.render() == "<http://www.w3.org/2001/XMLSchema#integer>(?n)")
 
-        let membership = SPARQLExpression.notIn(.variable("x"), [.iri("http://example.org/a"), .term(Foaf.PersonIndividual.sparql), .literal(try Literal("b"))])
+        let membership = SPARQLExpression.notIn(.variable("x"), [.iri("http://example.org/a"), .term(Foaf.PersonIndividual.sparql), .literal(Literal("b"))])
         #expect(membership.render() == #"(?x NOT IN (<http://example.org/a>, <http://xmlns.com/foaf/0.1/Person>, "b"))"#)
 
         let joined = SPARQLExpression.aggregate(.groupConcat(separator: ", "), distinct: false, .variable("name"))
@@ -184,11 +184,11 @@ struct SPARQLQueryRenderingTests {
     @Test("Literals render with escapes, language tags, base directions and datatypes")
     func literalsRender() throws {
         let writer = SPARQLTermWriter()
-        #expect(writer.write(try Literal("quote=\" slash=\\ newline=\n")) == #""quote=\" slash=\\ newline=\n""#)
+        #expect(writer.write(Literal("quote=\" slash=\\ newline=\n")) == #""quote=\" slash=\\ newline=\n""#)
         #expect(writer.write(try Literal("42", datatype: XSD.integer.metadata.id)) == #""42"^^<http://www.w3.org/2001/XMLSchema#integer>"#)
         #expect(writer.write(try Literal("bonjour", languageTag: "fr")) == #""bonjour"@fr"#)
-        #expect(writer.write(try Literal("chat", languageTag: "fr", textDirection: .ltr)) == #""chat"@fr--ltr"#)
-        #expect(writer.write(try Literal("café é")) == "\"café é\"")
+        #expect(writer.write(try Literal("chat", languageTag: "fr", baseDirection: .ltr)) == #""chat"@fr--ltr"#)
+        #expect(writer.write(Literal("café é")) == "\"café é\"")
     }
 
     @Test("A triple term pattern renders as <<( s p o )>>")
@@ -196,7 +196,7 @@ struct SPARQLQueryRenderingTests {
         let pattern = SPARQLTriplePattern(
             .variable("r"),
             .property(RDF.reifies.sparql),
-            .tripleTerm(subject: .variable("s"), predicate: .term(Foaf.name.sparql), object: .literal(try Literal("Alice")))
+            .tripleTerm(subject: .variable("s"), predicate: .term(Foaf.name.sparql), object: .literal(Literal("Alice")))
         )
         #expect(pattern.render() == #"?r <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( ?s <http://xmlns.com/foaf/0.1/name> "Alice" )>> ."#)
         #expect(pattern.variables == ["r", "s"])
@@ -209,10 +209,10 @@ struct SPARQLQueryRenderingTests {
     }
 
     @Test("A decoded blank node is refused, since a query cannot name the same node")
-    func decodedBlankNodeIsRefused() {
+    func decodedBlankNodeIsRefused() throws {
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("a b.")) }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("b1")) }
-        let nested = ObjectTerm.tripleTerm(TripleTermValue(subject: .blankNode(BlankNode(rawValue: "b1")), predicate: Foaf.name.metadata.id, object: .iri("http://example.org/o")))
+        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: Foaf.name.metadata.id, object: .iri("http://example.org/o")))
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(nested) }
     }
 
@@ -229,7 +229,7 @@ struct SPARQLQueryRenderingTests {
     func otherFormsRender() throws {
         let ask = SPARQLAskQuery(where: [
             pattern("person", Foaf.name.sparql, "name"),
-            .filter(.binary(.variable("name"), .equal, .literal(try Literal("Alice"))))
+            .filter(.binary(.variable("name"), .equal, .literal(Literal("Alice"))))
         ])
         #expect(ask.render() == """
             ASK

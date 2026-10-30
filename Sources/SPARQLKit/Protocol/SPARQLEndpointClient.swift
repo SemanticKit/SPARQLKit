@@ -151,7 +151,7 @@ public struct SPARQLEndpointClient: Sendable {
         method: SPARQLHTTPMethod = .post,
         options: SPARQLQueryRequestOptions = .init(),
         serviceDescription: SPARQLServiceDescription? = nil
-    ) async throws -> Set<DecodedTriple> {
+    ) async throws -> Graph {
         if let serviceDescription, !serviceDescription.supports(accept) {
             throw SPARQLError.invalidRequest("Endpoint service description does not support requested graph format.")
         }

@@ -29,7 +29,7 @@ struct SPARQLTermWriter {
         var text = quoted(literal.lexicalForm)
         if let language = literal.languageTag {
             text += "@" + language
-            if let direction = literal.textDirection {
+            if let direction = literal.baseDirection {
                 text += "--" + direction.rawValue
             }
         } else if let datatype = literal.datatype {

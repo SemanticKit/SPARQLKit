@@ -223,7 +223,7 @@ public struct SPARQLW3CManifestLoader {
 
 /// A decoded manifest, read by pattern.
 struct ManifestGraph {
-    let triples: [DecodedTriple]
+    let triples: Graph
 
     func subjects(_ predicate: IRI, _ object: IRI) -> [SubjectTerm] {
         triples.filter { $0.predicate == predicate && $0.object == .iri(object) }.map(\.subject)

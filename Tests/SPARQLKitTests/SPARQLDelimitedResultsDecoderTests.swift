@@ -56,7 +56,7 @@ struct SPARQLDelimitedResultsDecoderTests {
         let row = try #require(try decoder.decodeTSV(try fixture("select_result_tsv_terms.tsv")).bindings.first)
 
         #expect(row["iri"] == iri("http://example.org/r"))
-        #expect(row["bnode"] == blank("b1"))
+        #expect(try row["bnode"] == blank("b1"))
         #expect(row["lang"] == (try literal("bonjour", language: "fr")))
         #expect(row["typed"] == (try literal("42", datatype: xsdInteger)))
         #expect(row["plain"] == (try literal("text")))
@@ -73,7 +73,7 @@ struct SPARQLDelimitedResultsDecoderTests {
     @Test("TSV keeps a blank node label across rows")
     func tsvKeepsBlankNodeLabels() throws {
         let result = try decoder.decodeTSV(Data("?x\n_:b1\n_:b1\n".utf8))
-        #expect(result.bindings == [["x": blank("b1")], ["x": blank("b1")]])
+        #expect(try result.bindings == [["x": blank("b1")], ["x": blank("b1")]])
     }
 
     @Test("TSV unescapes string escapes and keeps Unicode")

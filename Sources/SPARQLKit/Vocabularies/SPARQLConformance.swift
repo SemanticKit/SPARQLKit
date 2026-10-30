@@ -5,7 +5,7 @@ import RDFKit
 /// SPARQLKit's own manifests add to the W3C test manifest vocabulary.
 @Ontology
 public struct SPARQLConformance: Ontology {
-    public func content() -> Content {
+    public var body: some Content {
         Namespace("https://codex.local/sparqlkit/conformance#")
 
         Class("DecodeJSONBindingsTest") {

@@ -3,6 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import IRIKit
+import RDFCore
 import RDFFormats
 import RDFKit
 
@@ -374,7 +375,7 @@ public struct SPARQLConformanceRunner {
                 method: "POST",
                 graph: .service,
                 contentType: SPARQLGraphAccept.ntriples.rawValue,
-                body: Data(NTriplesEncoder().encode([Self.graphStoreTriple]).utf8)
+                body: Data(NTriplesEncoder().encode(Graph([Self.graphStoreTriple])).utf8)
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "POST")
 
@@ -385,7 +386,7 @@ public struct SPARQLConformanceRunner {
                 method: "PUT",
                 graph: .named(iri),
                 contentType: SPARQLGraphAccept.ntriples.rawValue,
-                body: Data(NTriplesEncoder().encode([Self.graphStoreTriple]).utf8)
+                body: Data(NTriplesEncoder().encode(Graph([Self.graphStoreTriple])).utf8)
             )
             try assertRequest(request, testCase: testCase, expectedMethod: "PUT")
 
@@ -503,7 +504,7 @@ public struct SPARQLConformanceRunner {
     }
 
     /// The triple a graph store case sends.
-    static let graphStoreTriple = DecodedTriple(
+    static let graphStoreTriple = Graph.Element(
         subject: .iri("http://example.org/s"),
         predicate: "http://example.org/p",
         object: .iri("http://example.org/o")

@@ -1,4 +1,5 @@
 import Foundation
+import RDFCore
 import RDFFormats
 
 public enum SPARQLQueryResult: Hashable, Sendable {

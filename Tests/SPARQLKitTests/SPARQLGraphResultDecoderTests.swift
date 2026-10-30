@@ -1,5 +1,6 @@
 import Foundation
 import IRIKit
+import RDFCore
 import RDFFormats
 import Testing
 @testable import SPARQLKit
@@ -13,8 +14,8 @@ struct SPARQLGraphResultDecoderTests {
         let graph = try SPARQLGraphResultDecoder().decode(try fixture("construct_result_turtle.ttl"), as: .turtle)
 
         #expect(graph == [
-            DecodedTriple(subject: .iri("http://example.org/alice"), predicate: knows, object: .iri("http://example.org/bob")),
-            DecodedTriple(subject: .iri("http://example.org/bob"), predicate: knows, object: .iri("http://example.org/charlie"))
+            Graph.Element(subject: .iri("http://example.org/alice"), predicate: knows, object: .iri("http://example.org/bob")),
+            Graph.Element(subject: .iri("http://example.org/bob"), predicate: knows, object: .iri("http://example.org/charlie"))
         ])
     }
 
@@ -25,7 +26,7 @@ struct SPARQLGraphResultDecoderTests {
             as: .turtle,
             base: "http://example.org/"
         )
-        #expect(graph == [DecodedTriple(subject: .iri("http://example.org/a"), predicate: knows, object: .iri("http://example.org/b"))])
+        #expect(graph == [Graph.Element(subject: .iri("http://example.org/a"), predicate: knows, object: .iri("http://example.org/b"))])
     }
 
     @Test("An N-Triples graph decodes")

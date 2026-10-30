@@ -32,7 +32,7 @@ struct SPARQLUpdateRenderingTests {
     @Test("INSERT DATA may hold blank nodes")
     func insertDataHoldsBlankNodes() throws {
         let update = try SPARQLUpdateRequest([
-            .insertData([SPARQLTriplePattern(.blankNode(try SPARQLBlankNode("b1")), .property(Foaf.name.sparql), .literal(try Literal("x")))])
+            .insertData([SPARQLTriplePattern(.blankNode(try SPARQLBlankNode("b1")), .property(Foaf.name.sparql), .literal(Literal("x")))])
         ])
         #expect(update.render().contains("_:b1 <http://xmlns.com/foaf/0.1/name> \"x\" ."))
     }

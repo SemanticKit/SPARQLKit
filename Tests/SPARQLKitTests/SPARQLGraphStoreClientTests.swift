@@ -3,6 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import IRIKit
+import RDFCore
 import RDFFormats
 import Testing
 @testable import SPARQLKit
@@ -11,7 +12,7 @@ import Testing
 struct SPARQLGraphStoreClientTests {
     let graphStore = URL(string: "https://example.org/graphs")!
     let named: IRI = "https://example.org/g"
-    let triple = DecodedTriple(
+    let triple = Graph.Element(
         subject: .iri("http://example.org/s"),
         predicate: "http://example.org/p",
         object: .iri("http://example.org/o")
@@ -137,12 +138,12 @@ struct SPARQLGraphStoreClientTests {
     @Test("Relative IRIs in a returned graph resolve against the graph's URL")
     func relativeIRIsResolveAgainstRetrievalURL() async throws {
         let session = MockSession(body: "<#a> <#b> <c> .")
-        #expect(try await client(session).getGraph(.defaultGraph) == [DecodedTriple(
+        #expect(try await client(session).getGraph(.defaultGraph) == [Graph.Element(
             subject: .iri("https://example.org/graphs?default#a"),
             predicate: "https://example.org/graphs?default#b",
             object: .iri("https://example.org/c")
         )])
-        #expect(try await client(session).getGraph(.named(named), accept: .turtle) == [DecodedTriple(
+        #expect(try await client(session).getGraph(.named(named), accept: .turtle) == [Graph.Element(
             subject: .iri("https://example.org/graphs?graph=https://example.org/g#a"),
             predicate: "https://example.org/graphs?graph=https://example.org/g#b",
             object: .iri("https://example.org/c")

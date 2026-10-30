@@ -8,7 +8,7 @@ import RDFKit
 /// Description §3.3.6, SPARQL 1.2 Entailment Regimes).
 @Ontology
 public struct Entailment: Ontology {
-    public func content() -> Content {
+    public var body: some Content {
         Namespace("http://www.w3.org/ns/entailment/")
 
         Individual("Simple") {

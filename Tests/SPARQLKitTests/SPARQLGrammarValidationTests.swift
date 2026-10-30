@@ -85,7 +85,7 @@ struct SPARQLGrammarValidationTests {
 
     @Test("DESCRIBE names variables and IRIs only")
     func describeNamesVariablesAndIRIs() throws {
-        #expect(throws: SPARQLError.self) { try SPARQLDescribeQuery([.literal(try Literal("x"))]) }
+        #expect(throws: SPARQLError.self) { try SPARQLDescribeQuery([.literal(Literal("x"))]) }
         #expect(throws: SPARQLError.self) { try SPARQLDescribeQuery([.blankNode(try SPARQLBlankNode("b"))]) }
         #expect(try SPARQLDescribeQuery([.term(Foaf.PersonIndividual.sparql)]).render() == "DESCRIBE <http://xmlns.com/foaf/0.1/Person>")
     }

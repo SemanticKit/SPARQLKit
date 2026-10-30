@@ -18,7 +18,7 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
         guard let content = String(data: data, encoding: .utf8) else {
             throw SPARQLError.decodingFailure("CSV content is not UTF-8.")
         }
-        return try decodeRows(try parseCSV(content)) { .literal(try Literal($0)) }
+        return try decodeRows(try parseCSV(content)) { .literal(Literal($0)) }
     }
 
     /// Decodes a TSV results document.
@@ -55,7 +55,7 @@ public struct SPARQLDelimitedResultsDecoder: Sendable {
     /// one-triple Turtle document.
     private func decodeTSVTerm(_ field: String) throws -> ObjectTerm {
         let carrier = "<" + RDF.value.metadata.id.rawValue + ">"
-        let triples: [DecodedTriple]
+        let triples: Graph
         do {
             triples = try TurtleDecoder().decode(carrier + " " + carrier + " " + field + " .")
         } catch {

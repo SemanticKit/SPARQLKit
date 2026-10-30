@@ -73,7 +73,7 @@ struct SPARQLEndpointClientTests {
     func formEncodingContainsLiterals() async throws {
         let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[]}}"#)
         let query = SPARQLSelectQuery(["s"], where: [
-            .triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .literal(try Literal("a&b=1"))))
+            .triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .literal(Literal("a&b=1"))))
         ])
         _ = try await client(session).executeSelect(query)
         #expect(try #require(session.lastRequest).bodyText.contains("%22a%26b%3D1%22"))
@@ -194,7 +194,7 @@ struct SPARQLEndpointClientTests {
             where: select.patterns
         )
         let graph = try await client(session).executeGraphQuery(construct)
-        #expect(graph == [DecodedTriple(
+        #expect(graph == [Graph.Element(
             subject: .iri("https://example.org/sparql#a"),
             predicate: "https://example.org/sparql#b",
             object: .iri("https://example.org/c")

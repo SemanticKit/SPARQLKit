@@ -2,6 +2,7 @@ import Foundation
 #if canImport(FoundationXML)
 import FoundationXML
 #endif
+import RDFCore
 import RDFFormats
 
 public struct SPARQLXMLResultDecoder: Sendable {

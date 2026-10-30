@@ -5,7 +5,7 @@ import RDFKit
 /// the DSL so that queries name these generated types, never IRIs.
 @Ontology
 struct Foaf: Ontology {
-    func content() -> Content {
+    var body: some Content {
         Namespace("http://xmlns.com/foaf/0.1/")
 
         Class("Agent") {

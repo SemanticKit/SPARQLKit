@@ -17,7 +17,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/SemanticKit/IRIKit.git", branch: "main"),
-        .package(url: "https://github.com/SemanticKit/RDFKit.git", branch: "wp/05-formats")
+        .package(url: "https://github.com/SemanticKit/RDFKit.git", branch: "wp/04-one-rdf-model")
     ],
     targets: [
         .target(

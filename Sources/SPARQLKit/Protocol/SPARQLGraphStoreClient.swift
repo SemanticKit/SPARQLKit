@@ -79,7 +79,7 @@ public struct SPARQLGraphStoreClient: Sendable {
         _ graph: SPARQLGraphStoreGraph = .defaultGraph,
         accept: SPARQLGraphAccept = .turtle,
         conditional: SPARQLConditionalRequest? = nil
-    ) async throws -> Set<DecodedTriple> {
+    ) async throws -> Graph {
         let request = try makeRequest(method: "GET", graph: graph, accept: accept.rawValue, conditional: conditional)
         let (data, response) = try await transport.perform(request)
         return try SPARQLGraphResultDecoder().decode(data, as: accept, base: transport.retrievalIRI(of: response, for: request))
@@ -95,7 +95,7 @@ public struct SPARQLGraphStoreClient: Sendable {
 
     /// `PUT`: replaces the graph with these triples.
     public func putGraph(
-        _ triples: [DecodedTriple],
+        _ triples: Graph,
         graph: SPARQLGraphStoreGraph = .defaultGraph,
         conditional: SPARQLConditionalRequest? = nil
     ) async throws -> Data {
@@ -105,7 +105,7 @@ public struct SPARQLGraphStoreClient: Sendable {
     /// `POST`: merges these triples into the graph, or creates a graph when
     /// sent to ``SPARQLGraphStoreGraph/service``.
     public func postGraph(
-        _ triples: [DecodedTriple],
+        _ triples: Graph,
         graph: SPARQLGraphStoreGraph = .defaultGraph,
         conditional: SPARQLConditionalRequest? = nil
     ) async throws -> Data {
@@ -122,7 +122,7 @@ public struct SPARQLGraphStoreClient: Sendable {
 
     private func send(
         _ method: String,
-        _ triples: [DecodedTriple],
+        _ triples: Graph,
         graph: SPARQLGraphStoreGraph,
         conditional: SPARQLConditionalRequest?
     ) async throws -> Data {

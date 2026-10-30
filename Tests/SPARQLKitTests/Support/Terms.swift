@@ -9,8 +9,8 @@ func iri(_ value: IRI) -> ObjectTerm {
 }
 
 /// A blank node term.
-func blank(_ label: String) -> ObjectTerm {
-    .blankNode(BlankNode(rawValue: label))
+func blank(_ label: String) throws -> ObjectTerm {
+    .blankNode(try BlankNode(label))
 }
 
 /// A literal term.
@@ -18,14 +18,20 @@ func literal(
     _ lexicalForm: String,
     datatype: IRI? = nil,
     language: String? = nil,
-    direction: TextDirection? = nil
+    direction: BaseDirection? = nil
 ) throws -> ObjectTerm {
-    .literal(try Literal(lexicalForm, languageTag: language, textDirection: direction, datatype: datatype))
+    if let language {
+        return .literal(try Literal(lexicalForm, languageTag: language, baseDirection: direction))
+    }
+    if let datatype {
+        return .literal(try Literal(lexicalForm, datatype: datatype))
+    }
+    return .literal(Literal(lexicalForm))
 }
 
 /// A triple term.
 func triple(_ subject: IRI, _ predicate: IRI, _ object: ObjectTerm) -> ObjectTerm {
-    .tripleTerm(TripleTermValue(subject: .iri(subject), predicate: predicate, object: object))
+    .tripleTerm(Graph.Element(subject: .iri(subject), predicate: predicate, object: object))
 }
 
 /// `xsd:integer`, at the boundary where decoded literals carry it.

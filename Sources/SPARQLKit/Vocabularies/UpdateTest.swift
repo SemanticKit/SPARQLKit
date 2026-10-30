@@ -4,7 +4,7 @@ import RDFKit
 /// The W3C update test vocabulary: the action of an update evaluation test.
 @Ontology
 public struct UpdateTest: Ontology {
-    public func content() -> Content {
+    public var body: some Content {
         Namespace("http://www.w3.org/2009/sparql/tests/test-update#")
 
         Property("request") {

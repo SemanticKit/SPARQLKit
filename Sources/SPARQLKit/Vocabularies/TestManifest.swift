@@ -4,7 +4,7 @@ import RDFKit
 /// The W3C test manifest vocabulary the SPARQL test suites are written in.
 @Ontology
 public struct TestManifest: Ontology {
-    public func content() -> Content {
+    public var body: some Content {
         Namespace("http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#")
 
         Class("Manifest") {

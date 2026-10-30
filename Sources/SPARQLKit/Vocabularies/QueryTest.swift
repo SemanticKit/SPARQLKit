@@ -4,7 +4,7 @@ import RDFKit
 /// The W3C query test vocabulary: the action of a query evaluation test.
 @Ontology
 public struct QueryTest: Ontology {
-    public func content() -> Content {
+    public var body: some Content {
         Namespace("http://www.w3.org/2001/sw/DataAccess/tests/test-query#")
 
         Property("query") {

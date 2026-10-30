@@ -10,7 +10,7 @@ import RDFKit
 /// generated terms; the IRIs stay in the document.
 @Ontology
 public struct ServiceDescription: Ontology {
-    public func content() -> Content {
+    public var body: some Content {
         Namespace("http://www.w3.org/ns/sparql-service-description#")
 
         Class("Service") {

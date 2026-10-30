@@ -7,7 +7,7 @@ import RDFKit
 /// supports with these individuals (SPARQL 1.2 Service Description §3.2.14).
 @Ontology
 public struct Formats: Ontology {
-    public func content() -> Content {
+    public var body: some Content {
         Namespace("http://www.w3.org/ns/formats/")
 
         Class("Format") {

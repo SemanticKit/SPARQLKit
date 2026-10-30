@@ -50,7 +50,7 @@ struct SPARQLJSONResultDecoderTests {
         #expect(result.variables == ["u", "b", "lang", "typed"])
         let first = try #require(result.bindings.first)
         #expect(first["u"] == iri("http://example.org/resource"))
-        #expect(first["b"] == blank("node1"))
+        #expect(try first["b"] == blank("node1"))
         #expect(first["lang"] == (try literal("hello", language: "en")))
         #expect(first["typed"] == (try literal("42", datatype: xsdInteger)))
     }
