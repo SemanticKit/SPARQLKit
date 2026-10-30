@@ -88,7 +88,10 @@ struct SPARQLServiceDescriptionTests {
             Entailment.Simple, Entailment.RDF, Entailment.RDFS, Entailment.D,
             Entailment.OWL_Direct, Entailment.OWL_RDF_Based, Entailment.RIF
         ]
-        #expect(regimes.allSatisfy { $0 is any ServiceDescription.Feature })
+        // sd:EntailmentRegime is a subclass of sd:Feature, so each regime is
+        // a feature by its type: this upcast compiles only if that holds.
+        let features: [any ServiceDescription.Feature] = regimes.map { $0 }
+        #expect(features.count == regimes.count)
         #expect(SPARQLServiceDescription(entailmentRegimes: regimes).supportsEntailment(Entailment.RIF))
     }
 
