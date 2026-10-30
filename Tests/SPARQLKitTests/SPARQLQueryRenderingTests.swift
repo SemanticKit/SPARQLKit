@@ -223,7 +223,7 @@ struct SPARQLQueryRenderingTests {
 
     @Test("A decoded term becomes the pattern position that matches it")
     func decodedTermBecomesPatternTerm() throws {
-        let term = triple(alice, IRI(of: FOAF.name.self)!, try literal("Alice"))
+        let term = try Fixture("rendering_triple_term.ttl", in: .module).triple(RDF.reifies.self).object
         #expect(try SPARQLPatternTerm(term).render() == #"<<( <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice" )>>"#)
     }
 
@@ -231,7 +231,11 @@ struct SPARQLQueryRenderingTests {
     func decodedBlankNodeIsRefused() throws {
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("a b.")) }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("b1")) }
-        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name.self)!, object: .iri(known)))
+        let nested = try Fixture("rendering_blank_triple_term.ttl", in: .module).triple(RDF.reifies.self).object
+        guard case .tripleTerm = nested else {
+            Issue.record("The fixture states no triple term, but \(nested).")
+            return
+        }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(nested) }
     }
 
