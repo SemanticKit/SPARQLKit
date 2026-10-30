@@ -8,6 +8,16 @@ import Testing
 
 @Suite("Typed queries render to SPARQL", .tags(.rendering))
 struct SPARQLQueryRenderingTests {
+    let terms: (subject: IRI, predicate: IRI, object: IRI)
+    let dataset: (subject: IRI, predicate: IRI, object: IRI)
+    let example: (subject: IRI, predicate: IRI, object: IRI)
+
+    init() throws {
+        terms = try fixtureIRIs("rendering_terms.ttl")
+        dataset = try fixtureIRIs("rendering_dataset.ttl")
+        example = try fixtureIRIs("example_triple.ttl")
+    }
+
     func pattern(_ s: Variable, _ p: SPARQLTerm, _ o: Variable) -> SPARQLPattern {
         .triple(SPARQLTriplePattern(.variable(s), .property(p), .variable(o)))
     }
@@ -41,10 +51,10 @@ struct SPARQLQueryRenderingTests {
                 .optional([pattern("s", FOAF.nick.sparql, "opt")]),
                 .union([[pattern("s", FOAF.name.sparql, "o1")], [pattern("s", FOAF.knows.sparql, "o2")]]),
                 .minus([pattern("s", FOAF.page.sparql, "x")]),
-                .graph(.iri("http://example.org/graph"), [pattern("s", FOAF.name.sparql, "g")]),
+                .graph(.iri(terms.predicate), [pattern("s", FOAF.name.sparql, "g")]),
                 .filter(.builtIn(.bound, [.variable("o2")])),
                 .bind(.builtIn(.strlen, [.builtIn(.str, [.variable("o2")])]), as: "calc"),
-                .values(try SPARQLValues(variables: ["s"], rows: [[.iri("http://example.org/a")], [.term(FOAF.PersonIndividual.sparql)]]))
+                .values(try SPARQLValues(variables: ["s"], rows: [[.iri(terms.object)], [.term(FOAF.PersonIndividual.sparql)]]))
             ]
         )
 
@@ -82,13 +92,13 @@ struct SPARQLQueryRenderingTests {
         let query = SPARQLSelectQuery(
             ["s", "count"],
             distinct: true,
-            fromGraphs: ["http://example.org/default"],
-            fromNamedGraphs: ["http://example.org/named"],
+            fromGraphs: [dataset.subject],
+            fromNamedGraphs: [dataset.predicate],
             where: [
                 pattern("s", FOAF.name.sparql, "o"),
                 .values(try SPARQLValues(
                     variables: ["s", "o"],
-                    rows: [[.iri("http://example.org/a"), .literal(Literal("one"))], [nil, .literal(Literal("two"))]]
+                    rows: [[.iri(terms.object), .literal(Literal("one"))], [nil, .literal(Literal("two"))]]
                 ))
             ],
             groupBy: ["s"],
@@ -114,7 +124,7 @@ struct SPARQLQueryRenderingTests {
     func subqueryRenders() {
         let inner = SPARQLSelectQuery(
             ["s"],
-            fromGraphs: ["http://example.org/ignored"],
+            fromGraphs: [dataset.object],
             where: [pattern("s", FOAF.name.sparql, "o")],
             limit: 5
         )
@@ -172,7 +182,7 @@ struct SPARQLQueryRenderingTests {
         let call = SPARQLExpression.function(RDF.JSONIndividual.sparql, [.variable("n")])
         #expect(call.render() == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON>(?n)")
 
-        let membership = SPARQLExpression.notIn(.variable("x"), [.iri("http://example.org/a"), .term(FOAF.PersonIndividual.sparql), .literal(Literal("b"))])
+        let membership = SPARQLExpression.notIn(.variable("x"), [.iri(terms.object), .term(FOAF.PersonIndividual.sparql), .literal(Literal("b"))])
         #expect(membership.render() == #"(?x NOT IN (<http://example.org/a>, <http://xmlns.com/foaf/0.1/Person>, "b"))"#)
 
         let joined = SPARQLExpression.aggregate(.groupConcat(separator: ", "), distinct: false, .variable("name"))
@@ -204,7 +214,7 @@ struct SPARQLQueryRenderingTests {
 
     @Test("A decoded term becomes the pattern position that matches it")
     func decodedTermBecomesPatternTerm() throws {
-        let term = triple("http://example.org/alice", IRI(of: FOAF.name)!, try literal("Alice"))
+        let term = triple(terms.subject, IRI(of: FOAF.name)!, try literal("Alice"))
         #expect(try SPARQLPatternTerm(term).render() == #"<<( <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice" )>>"#)
     }
 
@@ -212,7 +222,7 @@ struct SPARQLQueryRenderingTests {
     func decodedBlankNodeIsRefused() throws {
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("a b.")) }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("b1")) }
-        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name)!, object: .iri("http://example.org/o")))
+        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name)!, object: .iri(example.object)))
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(nested) }
     }
 
@@ -255,7 +265,7 @@ struct SPARQLQueryRenderingTests {
             """)
 
         let describe = try SPARQLDescribeQuery(
-            [.variable("person"), .iri("http://example.org/alice")],
+            [.variable("person"), .iri(terms.subject)],
             where: [.triple(SPARQLTriplePattern(.variable("person"), .variable("p"), .variable("o")))],
             limit: 5
         )

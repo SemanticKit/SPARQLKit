@@ -1,0 +1,5 @@
+# Graphs used when SPARQL_TEST_GRAPH_IRI is unset: the subject for the
+# update round trip, the object for the Graph Store round trip.
+@prefix ex: <http://example.org/> .
+
+ex:test-graph ex:graphStore <http://example.org/sparqlkit/graphstore> .

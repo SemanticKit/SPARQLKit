@@ -15,9 +15,15 @@ struct SPARQLEndpointClientTests {
     let queryURL = URL(string: "https://example.org/sparql")!
     let updateURL = URL(string: "https://example.org/update")!
     let select = SPARQLSelectQuery(["s"], where: [.triple(SPARQLTriplePattern(.variable("s"), .variable("p"), .variable("o")))])
-    let insertData = SPARQLUpdateOperation.insertData([
-        SPARQLTriplePattern(.iri("http://example.org/s"), .property(FOAF.knows.sparql), .iri("http://example.org/o"))
-    ])
+    let example: (subject: IRI, predicate: IRI, object: IRI)
+    let insertData: SPARQLUpdateOperation
+
+    init() throws {
+        example = try fixtureIRIs("example_triple.ttl")
+        insertData = .insertData([
+            SPARQLTriplePattern(.iri(example.subject), .property(FOAF.knows.sparql), .iri(example.object))
+        ])
+    }
 
     func client(_ session: MockSession = MockSession(), update: Bool = true, headers: [String: String] = [:]) -> SPARQLEndpointClient {
         SPARQLEndpointClient(
@@ -33,13 +39,14 @@ struct SPARQLEndpointClientTests {
 
     @Test("GET puts the rendered query and dataset in the URL")
     func getQueryRequest() async throws {
+        let dataset = try fixtureIRIs("endpoint_dataset_graphs.ttl")
         let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[]}}"#)
         _ = try await client(session, headers: ["X-Client": "SPARQLKit"]).executeSelect(
             select,
             method: .get,
             options: SPARQLQueryRequestOptions(
-                defaultGraphs: ["https://example.org/graphs/default"],
-                namedGraphs: ["https://example.org/graphs/n1", "https://example.org/graphs/n2"]
+                defaultGraphs: [dataset.subject],
+                namedGraphs: [dataset.predicate, dataset.object]
             )
         )
 
@@ -56,13 +63,14 @@ struct SPARQLEndpointClientTests {
 
     @Test("GET percent-encodes '+' in paths and arithmetic, so it is not read back as a space", .tags(.security))
     func getEncodesPlus() async throws {
+        let plusGraph = try fixtureIRIs("endpoint_encoded_graphs.ttl").subject
         let session = MockSession(body: #"{"head":{"vars":["o"]},"results":{"bindings":[]}}"#)
         let query = SPARQLSelectQuery(["o"], where: [
             .triple(SPARQLTriplePattern(.variable("s"), .path(.oneOrMore(.property(FOAF.knows.sparql))), .variable("o"))),
             .bind(.binary(.variable("n"), .add, .literal(try integer("1"))), as: "m")
         ])
         _ = try await client(session).executeSelect(query, method: .get, options: SPARQLQueryRequestOptions(
-            defaultGraphs: ["https://example.org/graphs/a+b"]
+            defaultGraphs: [plusGraph]
         ))
 
         let request = try #require(session.lastRequest)
@@ -77,15 +85,16 @@ struct SPARQLEndpointClientTests {
             return (parts[0], parts[1].replacingOccurrences(of: "+", with: " ").removingPercentEncoding ?? "")
         }
         #expect(parameters.first { $0.0 == "query" }?.1 == query.render())
-        #expect(parameters.first { $0.0 == "default-graph-uri" }?.1 == "https://example.org/graphs/a+b")
+        #expect(parameters.first { $0.0 == "default-graph-uri" }?.1 == plusGraph.rawValue)
     }
 
     @Test("POST form-encodes the rendered query and dataset")
     func postQueryRequest() async throws {
+        let encoded = try fixtureIRIs("endpoint_encoded_graphs.ttl")
         let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[]}}"#)
         _ = try await client(session).executeSelect(
             select,
-            options: SPARQLQueryRequestOptions(defaultGraphs: ["https://example.org/g?x=1&y=2"], namedGraphs: ["https://example.org/named#frag"])
+            options: SPARQLQueryRequestOptions(defaultGraphs: [encoded.predicate], namedGraphs: [encoded.object])
         )
 
         let request = try #require(session.lastRequest)
@@ -108,10 +117,11 @@ struct SPARQLEndpointClientTests {
 
     @Test("An update goes to the update endpoint with its dataset")
     func updateRequest() async throws {
+        let using = try fixtureIRIs("endpoint_update_graphs.ttl")
         let session = MockSession()
         _ = try await client(session).executeUpdate(
             try SPARQLUpdateRequest([insertData]),
-            options: SPARQLUpdateRequestOptions(usingGraphs: ["https://example.org/u-default"], usingNamedGraphs: ["https://example.org/u-named"])
+            options: SPARQLUpdateRequestOptions(usingGraphs: [using.subject], usingNamedGraphs: [using.object])
         )
 
         let request = try #require(session.lastRequest)
@@ -194,7 +204,7 @@ struct SPARQLEndpointClientTests {
     func selectDecodes() async throws {
         let session = MockSession(body: #"{"head":{"vars":["s"]},"results":{"bindings":[{"s":{"type":"uri","value":"http://example.org/s"}}]}}"#)
         let result = try await client(session).executeSelect(select)
-        #expect(result.bindings == [["s": iri("http://example.org/s")]])
+        #expect(result.bindings == [["s": iri(example.subject)]])
     }
 
     @Test("CONSTRUCT and DESCRIBE ask for a graph and decode it", arguments: [SPARQLGraphAccept.turtle, .ntriples])
@@ -208,7 +218,7 @@ struct SPARQLEndpointClientTests {
         #expect(constructed.count == 1)
         #expect(session.lastRequest?.value(forHTTPHeaderField: "Accept") == accept.rawValue)
 
-        let described = try await client(session).executeGraphQuery(try SPARQLDescribeQuery([.iri("http://example.org/s")]), accept: accept)
+        let described = try await client(session).executeGraphQuery(try SPARQLDescribeQuery([.iri(example.subject)]), accept: accept)
         #expect(described == constructed)
         #expect(try #require(session.lastRequest).bodyText == "query=DESCRIBE%20%3Chttp%3A%2F%2Fexample.org%2Fs%3E")
     }
@@ -221,11 +231,7 @@ struct SPARQLEndpointClientTests {
             where: select.patterns
         )
         let graph = try await client(session).executeGraphQuery(construct)
-        #expect(graph == [Graph.Element(
-            subject: .iri("https://example.org/sparql#a"),
-            predicate: "https://example.org/sparql#b",
-            object: .iri("https://example.org/c")
-        )])
+        #expect(graph == (try fixtureGraph("endpoint_resolved.ttl")))
     }
 
     @Test("A result IRI decodes into the declared individual it names", .tags(.decoding))

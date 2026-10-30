@@ -1,0 +1,4 @@
+# The plain example triple the protocol tests send and expect back.
+@prefix ex: <http://example.org/> .
+
+ex:s ex:p ex:o .

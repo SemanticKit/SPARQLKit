@@ -99,7 +99,8 @@ let package = Package(
                 "FOAF",
                 .product(name: "IRIKit", package: "IRIKit"),
                 .product(name: "RDFFormats", package: "RDFKit")
-            ] + layers
+            ] + layers,
+            resources: [.process("Fixtures")]
         ),
     ]
 )

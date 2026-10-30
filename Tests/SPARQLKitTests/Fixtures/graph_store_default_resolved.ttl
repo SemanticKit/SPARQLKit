@@ -1,0 +1,2 @@
+# "<#a> <#b> <c> ." resolved against the default graph's retrieval URL.
+<https://example.org/graphs?default#a> <https://example.org/graphs?default#b> <https://example.org/c> .

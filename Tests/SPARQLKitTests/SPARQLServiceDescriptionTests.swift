@@ -196,10 +196,8 @@ struct SPARQLServiceDescriptionTests {
 
     @Test("A result term decodes into the translated individual it denotes", .tags(.vocabulary))
     func iriDenotesTranslatedIndividual() throws {
-        let binding: Binding = [
-            "regime": .iri("http://www.w3.org/ns/entailment/OWL-Direct"),
-            "other": .iri("http://www.w3.org/ns/entailment/Unknown")
-        ]
+        let terms = try fixtureIRIs("entailment_binding_terms.ttl")
+        let binding: Binding = ["regime": .iri(terms.subject), "other": .iri(terms.object)]
         let regimes: [any EntailmentRegimes.Entailment] = [EntailmentRegimes.RDFS, EntailmentRegimes.`OWL-Direct`]
         #expect(binding.individual("regime", among: regimes) === EntailmentRegimes.`OWL-Direct`)
         #expect(binding.individual("other", among: regimes) == nil)

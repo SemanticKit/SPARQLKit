@@ -1,0 +1,2 @@
+# "<#a> <#b> <c> ." resolved against the query endpoint's URL.
+<https://example.org/sparql#a> <https://example.org/sparql#b> <https://example.org/c> .

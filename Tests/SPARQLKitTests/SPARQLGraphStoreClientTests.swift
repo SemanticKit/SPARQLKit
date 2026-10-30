@@ -11,12 +11,14 @@ import Testing
 @Suite("Graph Store Protocol client", .tags(.protocol))
 struct SPARQLGraphStoreClientTests {
     let graphStore = URL(string: "https://example.org/graphs")!
-    let named: IRI = "https://example.org/g"
-    let triple = Graph.Element(
-        subject: .iri("http://example.org/s"),
-        predicate: "http://example.org/p",
-        object: .iri("http://example.org/o")
-    )
+    let named: IRI
+    let encoded: IRI
+    let triple: Graph.Element
+
+    init() throws {
+        (named, _, encoded) = try fixtureIRIs("graph_store_graphs.ttl")
+        triple = try fixtureTriple("example_triple.ttl")
+    }
 
     func client(_ session: MockSession, headers: [String: String] = [:], authentication: EndpointAuthentication? = nil) -> SPARQLGraphStoreClient {
         SPARQLGraphStoreClient(
@@ -60,7 +62,7 @@ struct SPARQLGraphStoreClientTests {
     @Test("A named graph IRI is percent-encoded in the graph parameter, '+' included", .tags(.security))
     func namedGraphIsPercentEncoded() async throws {
         let session = MockSession()
-        _ = try await client(session).deleteGraph(.named("https://example.org/g?a=1&b=c+d"))
+        _ = try await client(session).deleteGraph(.named(encoded))
 
         #expect(session.lastRequest?.url?.absoluteString
             == "https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg%3Fa%3D1%26b%3Dc%2Bd")
@@ -147,15 +149,7 @@ struct SPARQLGraphStoreClientTests {
     @Test("Relative IRIs in a returned graph resolve against the graph's URL")
     func relativeIRIsResolveAgainstRetrievalURL() async throws {
         let session = MockSession(body: "<#a> <#b> <c> .")
-        #expect(try await client(session).getGraph(.defaultGraph) == [Graph.Element(
-            subject: .iri("https://example.org/graphs?default#a"),
-            predicate: "https://example.org/graphs?default#b",
-            object: .iri("https://example.org/c")
-        )])
-        #expect(try await client(session).getGraph(.named(named), accept: .turtle) == [Graph.Element(
-            subject: .iri("https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg#a"),
-            predicate: "https://example.org/graphs?graph=https%3A%2F%2Fexample.org%2Fg#b",
-            object: .iri("https://example.org/c")
-        )])
+        #expect(try await client(session).getGraph(.defaultGraph) == fixtureGraph("graph_store_default_resolved.ttl"))
+        #expect(try await client(session).getGraph(.named(named), accept: .turtle) == fixtureGraph("graph_store_named_resolved.ttl"))
     }
 }

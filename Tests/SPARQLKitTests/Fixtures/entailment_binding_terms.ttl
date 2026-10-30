@@ -1,0 +1,6 @@
+# Result terms for the entailment binding test: the subject is a regime the
+# entailment vocabulary declares, the object one it does not.
+@prefix ent: <http://www.w3.org/ns/entailment/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ent:OWL-Direct rdfs:seeAlso ent:Unknown .

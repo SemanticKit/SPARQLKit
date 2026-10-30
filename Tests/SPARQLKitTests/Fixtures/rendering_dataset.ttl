@@ -1,0 +1,5 @@
+# A query dataset: the subject is a FROM graph, the predicate a FROM NAMED
+# graph and the object a FROM graph a query form ignores.
+@prefix ex: <http://example.org/> .
+
+ex:default ex:named ex:ignored .

@@ -1,0 +1,5 @@
+# Terms the rendering tests place in queries: a resource (subject), a graph
+# name (predicate) and a value (object).
+@prefix ex: <http://example.org/> .
+
+ex:alice ex:graph ex:a .

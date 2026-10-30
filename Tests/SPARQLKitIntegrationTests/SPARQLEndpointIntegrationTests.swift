@@ -32,10 +32,8 @@ struct SPARQLEndpointIntegrationTests {
             queryURL: try #require(Environment.queryURL),
             updateURL: Environment.updateURL
         ))
-        let graph = Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? "http://example.org/test-graph"
-        let subject: IRI = "http://example.org/sparqlkit/integration/sequence"
-        let objectA: IRI = "http://example.org/oA"
-        let objectB: IRI = "http://example.org/oB"
+        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? fixtureIRIs("default_graphs.ttl").subject
+        let (subject, objectA, objectB) = try fixtureIRIs("update_terms.ttl")
         func triple(_ object: IRI) -> SPARQLTriplePattern {
             SPARQLTriplePattern(.iri(subject), .property(FOAF.knows.sparql), .iri(object))
         }
@@ -58,8 +56,8 @@ struct SPARQLEndpointIntegrationTests {
     @Test("A graph put through the Graph Store comes back", .enabled(if: Environment.graphStoreURL != nil))
     func graphStoreRoundTrip() async throws {
         let client = SPARQLGraphStoreClient(configuration: SPARQLGraphStoreConfiguration(graphStoreURL: try #require(Environment.graphStoreURL)))
-        let graph = Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? "http://example.org/sparqlkit/graphstore"
-        let triple = Graph.Element(subject: .iri("http://example.org/s"), predicate: IRI(of: FOAF.knows)!, object: .iri("http://example.org/o"))
+        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? fixtureIRIs("default_graphs.ttl").object
+        let triple = try fixtureTriple("graph_store_triple.ttl")
 
         _ = try await client.putGraph([triple], graph: .named(graph))
         #expect(try await client.getGraph(.named(graph)).contains(triple))

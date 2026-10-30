@@ -1,0 +1,5 @@
+# The update round trip: the subject is the resource it writes, the
+# predicate the object it inserts and deletes, the object the one it keeps.
+@prefix ex: <http://example.org/> .
+
+<http://example.org/sparqlkit/integration/sequence> ex:oA ex:oB .
