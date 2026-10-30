@@ -18,14 +18,14 @@ public struct SPARQLServiceDescription: Sendable {
     public let resultFormats: [any Formats.Format]
     /// `sd:defaultEntailmentRegime` and the `sd:entailmentRegime` of the
     /// described graphs.
-    public let entailmentRegimes: [any RDFCore.Resource]
+    public let entailmentRegimes: [any ServiceDescription.EntailmentRegime]
 
     public init(
         endpoints: [URL] = [],
         supportedLanguages: [any ServiceDescription.Language] = [],
         features: [any ServiceDescription.Feature] = [],
         resultFormats: [any Formats.Format] = [],
-        entailmentRegimes: [any RDFCore.Resource] = []
+        entailmentRegimes: [any ServiceDescription.EntailmentRegime] = []
     ) {
         self.endpoints = endpoints
         self.supportedLanguages = supportedLanguages
@@ -48,7 +48,7 @@ public struct SPARQLServiceDescription: Sendable {
 
     /// Whether the endpoint uses this entailment regime. A description that
     /// names no regime restricts none.
-    public func supportsEntailment(_ regime: any RDFCore.Resource) -> Bool {
+    public func supportsEntailment(_ regime: any ServiceDescription.EntailmentRegime) -> Bool {
         entailmentRegimes.isEmpty || entailmentRegimes.contains { $0 === regime }
     }
 

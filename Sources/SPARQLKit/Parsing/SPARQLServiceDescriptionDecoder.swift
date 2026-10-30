@@ -64,7 +64,7 @@ extension Formats {
 
 extension Entailment {
     /// The entailment regime an IRI names, decoded at the boundary.
-    public static func decodeRegime(_ iri: IRI) -> (any RDFCore.Resource)? {
+    public static func decodeRegime(_ iri: IRI) -> (any ServiceDescription.EntailmentRegime)? {
         SPARQLResultTermDecoder().individual(named: iri, among: [Simple, RDF, RDFS, D, OWL_Direct, OWL_RDF_Based, RIF])
     }
 }

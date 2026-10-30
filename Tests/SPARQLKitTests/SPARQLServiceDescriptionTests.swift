@@ -62,6 +62,16 @@ struct SPARQLServiceDescriptionTests {
         #expect(Entailment.decodeRegime("http://www.w3.org/ns/entailment/Unknown") == nil)
     }
 
+    @Test("Every entailment regime is an individual of sd:EntailmentRegime", .tags(.vocabulary))
+    func regimesAreEntailmentRegimes() {
+        let regimes: [any ServiceDescription.EntailmentRegime] = [
+            Entailment.Simple, Entailment.RDF, Entailment.RDFS, Entailment.D,
+            Entailment.OWL_Direct, Entailment.OWL_RDF_Based, Entailment.RIF
+        ]
+        #expect(regimes.allSatisfy { $0 is any ServiceDescription.Feature })
+        #expect(SPARQLServiceDescription(entailmentRegimes: regimes).supportsEntailment(Entailment.RIF))
+    }
+
     @Test("An individual that is not an entailment regime does not decode as one", .tags(.vocabulary))
     func nonRegimesDoNotDecodeAsRegimes() throws {
         let turtle = """
@@ -72,7 +82,8 @@ struct SPARQLServiceDescriptionTests {
             """
         #expect(try SPARQLServiceDescriptionDecoder().decode(turtle).entailmentRegimes.isEmpty)
         #expect(Entailment.decodeRegime(type(of: Formats.Turtle).metadata.id) == nil)
-        #expect(!SPARQLServiceDescription(entailmentRegimes: [Entailment.RDFS]).supportsEntailment(Formats.Turtle))
+        #expect(!(Formats.Turtle is any ServiceDescription.EntailmentRegime))
+        #expect(!(ServiceDescription.SPARQL12Query is any ServiceDescription.EntailmentRegime))
     }
 
     @Test("The client refuses a result format the endpoint does not offer", .tags(.protocol))

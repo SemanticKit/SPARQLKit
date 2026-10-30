@@ -41,7 +41,7 @@ public struct SPARQLW3CManifestLoader {
         let graph = ManifestGraph(triples: try TurtleDecoder(base: base).decode(turtle))
 
         guard let manifest = graph.subjects(
-            RDF.type<any RDFCore.Resource>.metadata.id,
+            RDF.type.metadata.id,
             TestManifest.ManifestIndividual.metadata.id
         ).first else {
             throw SPARQLW3CManifestError.missingManifestNode
@@ -147,7 +147,7 @@ public struct SPARQLW3CManifestLoader {
            let operation = SPARQLConformanceOperation(rawValue: explicit) {
             return operation
         }
-        for type in graph.iris(node, RDF.type<any RDFCore.Resource>.metadata.id) {
+        for type in graph.iris(node, RDF.type.metadata.id) {
             if let operation = operation(ofType: type, node: node, in: graph) {
                 return operation
             }

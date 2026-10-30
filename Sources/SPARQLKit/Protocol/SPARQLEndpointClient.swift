@@ -14,12 +14,12 @@ public struct SPARQLQueryRequestOptions: Sendable {
     /// The `named-graph-uri` parameters.
     public let namedGraphs: [IRI]
     /// An entailment regime the endpoint's service description must name.
-    public let requiredEntailmentRegime: (any RDFCore.Resource)?
+    public let requiredEntailmentRegime: (any ServiceDescription.EntailmentRegime)?
 
     public init(
         defaultGraphs: [IRI] = [],
         namedGraphs: [IRI] = [],
-        requiredEntailmentRegime: (any RDFCore.Resource)? = nil
+        requiredEntailmentRegime: (any ServiceDescription.EntailmentRegime)? = nil
     ) {
         self.defaultGraphs = defaultGraphs
         self.namedGraphs = namedGraphs
