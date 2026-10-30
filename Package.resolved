@@ -1,5 +1,5 @@
 {
-  "originHash" : "80246faee5939f36a7f45b602f15bc33550aea7b674c28589ea17c5d33a963c6",
+  "originHash" : "92f576521a68064c6acc45898bd0b420969f02ef6b578e1de416e0a4d3b81322",
   "pins" : [
     {
       "identity" : "irikit",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/SemanticKit/RDFKit.git",
       "state" : {
         "branch" : "wp/integration",
-        "revision" : "b1221f0e22c51c1877437e00cb5c35cc99e6ad3c"
+        "revision" : "f2cf8614568ef4b76877f068b4b8a750410747fb"
       }
     },
     {
