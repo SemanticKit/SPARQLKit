@@ -1,3 +1,0 @@
-# A query dataset: the subject is its default graph, the predicate and
-# object its two named graphs.
-<https://example.org/graphs/default> <https://example.org/graphs/n1> <https://example.org/graphs/n2> .

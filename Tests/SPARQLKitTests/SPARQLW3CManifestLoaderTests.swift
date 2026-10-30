@@ -3,6 +3,9 @@ import IRIKit
 import RDFCore
 import RDFFormats
 import SPARQLConformance
+import TestQuery
+import TestUpdate
+import SPARQLKitTestSupport
 import Testing
 import TestManifest
 @testable import SPARQLKit
@@ -11,7 +14,7 @@ import TestManifest
 struct SPARQLW3CManifestLoaderTests {
     @Test
     func w3cManifestLoaderBuildsSuiteAndRunnerExecutesCases() throws {
-        let manifestData = try fixture("w3c_subset_manifest.ttl")
+        let manifestData = try Fixture.data("w3c_subset_manifest.ttl", in: .module)
         let baseURL = URL(string: "https://example.org/manifests/w3c_subset_manifest.ttl")
 
         let suite = try SPARQLW3CManifestLoader().loadSuite(from: manifestData, baseURL: baseURL)
@@ -20,7 +23,7 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases.count == 11)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
 
         #expect(report.allPassed)
@@ -52,21 +55,21 @@ struct SPARQLW3CManifestLoaderTests {
 
     @Test
     func w3cManifestLoaderResolvesIncludedManifestsAndMergesCases() throws {
-        let rootData = try fixture("w3c_subset_manifest_include_root.ttl")
+        let rootData = try Fixture.data("w3c_subset_manifest_include_root.ttl", in: .module)
         let baseURL = URL(string: "https://example.org/manifests/w3c_subset_manifest_include_root.ttl")
 
         let suite = try SPARQLW3CManifestLoader().loadSuite(
             from: rootData,
             baseURL: baseURL
         ) { includeFile in
-            try fixture(includeFile)
+            try Fixture.data(includeFile, in: .module)
         }
 
         #expect(suite.name == "SPARQLKit W3C include root")
         #expect(suite.cases.count == 4)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
 
         #expect(report.allPassed)
@@ -75,7 +78,7 @@ struct SPARQLW3CManifestLoaderTests {
 
     @Test
     func w3cManifestLoaderIncludeWithoutResolverFails() throws {
-        let rootData = try fixture("w3c_subset_manifest_include_root.ttl")
+        let rootData = try Fixture.data("w3c_subset_manifest_include_root.ttl", in: .module)
         let baseURL = URL(string: "https://example.org/manifests/w3c_subset_manifest_include_root.ttl")
 
         do {
@@ -88,21 +91,21 @@ struct SPARQLW3CManifestLoaderTests {
 
     @Test
     func w3cManifestLoaderLoadsAggregatedSuiteFromIndex() throws {
-        let indexData = try fixture("w3c_manifest_index.json")
+        let indexData = try Fixture.data("w3c_manifest_index.json", in: .module)
         let baseURL = URL(string: "https://example.org/manifests/")
 
         let suite = try SPARQLW3CManifestLoader().loadSuite(
             fromIndexData: indexData,
             baseURL: baseURL
         ) { file in
-            try fixture(file)
+            try Fixture.data(file, in: .module)
         }
 
         #expect(suite.name == "SPARQLKit aggregated W3C subset")
         #expect(suite.cases.count == 15)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -119,7 +122,7 @@ struct SPARQLW3CManifestLoaderTests {
             fromIndex: index,
             baseURL: URL(string: "https://example.org/manifests/")
         ) { file in
-            try fixture(file)
+            try Fixture.data(file, in: .module)
         }
 
         #expect(plan.suite.cases.count == 11)
@@ -193,7 +196,7 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases[1].test is TestManifest.UpdateEvaluationTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -228,7 +231,7 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases[1].test is TestManifest.QueryEvaluationTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -255,7 +258,7 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases[0].expectHeaderContains == ["Accept:application/sparql-results+json"])
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -291,7 +294,7 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases[1].test is TestManifest.UpdateEvaluationTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -316,18 +319,19 @@ struct SPARQLW3CManifestLoaderTests {
                                 "named-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fnamed" .
         """
 
-        let suite = try SPARQLW3CManifestLoader().loadSuite(
-            turtle: turtle,
-            baseURL: URL(string: "https://example.org/manifests/mf-query-action-dataset.ttl")
-        )
+        let base = try #require(URL(string: "https://example.org/manifests/mf-query-action-dataset.ttl"))
+        let suite = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle, baseURL: base)
+        // The graphs the manifest states its action reads (SPARQL 1.1 Test
+        // Cases, qt:data and qt:graphData), as RDFFormats decodes them.
+        let stated = Fixture(graph: try TurtleDecoder(base: IRI(rawValue: base.absoluteString)).decode(turtle))
         #expect(suite.cases.count == 1)
         let single = try #require(suite.cases.first)
         #expect(single.fixtureFile == "query_eval.rq")
-        #expect(single.defaultGraphs == ["https://example.org/graphs/default"])
-        #expect(single.namedGraphs == ["https://example.org/graphs/named"])
+        #expect(single.defaultGraphs == [try stated.iri(TestQuery.data)])
+        #expect(single.namedGraphs == [try stated.iri(TestQuery.graphData)])
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -352,18 +356,19 @@ struct SPARQLW3CManifestLoaderTests {
                                 "using-named-graph-uri=https%3A%2F%2Fexample.org%2Fgraphs%2Fu-named" .
         """
 
-        let suite = try SPARQLW3CManifestLoader().loadSuite(
-            turtle: turtle,
-            baseURL: URL(string: "https://example.org/manifests/mf-update-action-dataset.ttl")
-        )
+        let base = try #require(URL(string: "https://example.org/manifests/mf-update-action-dataset.ttl"))
+        let suite = try SPARQLW3CManifestLoader().loadSuite(turtle: turtle, baseURL: base)
+        // The graphs the manifest states its action uses (ut:data, and the
+        // ut:graph of its ut:graphData), as RDFFormats decodes them.
+        let stated = Fixture(graph: try TurtleDecoder(base: IRI(rawValue: base.absoluteString)).decode(turtle))
         #expect(suite.cases.count == 1)
         let single = try #require(suite.cases.first)
         #expect(single.fixtureFile == "update_eval.ru")
-        #expect(single.usingGraphs == ["https://example.org/graphs/u-default"])
-        #expect(single.usingNamedGraphs == ["https://example.org/graphs/u-named"])
+        #expect(single.usingGraphs == [try stated.iri(TestUpdate.data)])
+        #expect(single.usingNamedGraphs == [try stated.iri(TestUpdate.graph)])
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -405,7 +410,7 @@ struct SPARQLW3CManifestLoaderTests {
         #expect(suite.cases[4].test is SPARQLConformance.GraphStoreDeleteNamedRequestTestIndividual)
 
         let report = SPARQLConformanceRunner().run(suite: suite) { fileName in
-            try fixture(fileName)
+            try Fixture.data(fileName, in: .module)
         }
         #expect(report.allPassed)
     }
@@ -457,7 +462,7 @@ struct SPARQLW3CManifestLoaderTests {
 
         #expect(suite.cases.first?.test is SPARQLConformance.RenderQueryTestIndividual)
         #expect(suite.cases.first?.queryTemplate is SPARQLConformance.BasicSelectQueryIndividual)
-        #expect(SPARQLConformanceRunner().run(suite: suite, loadFixture: fixture).allPassed)
+        #expect(SPARQLConformanceRunner().run(suite: suite, loadFixture: { try Fixture.data($0, in: .module) }).allPassed)
     }
 
     @Test(
@@ -485,7 +490,7 @@ struct SPARQLW3CManifestLoaderTests {
         let suite = SPARQLConformanceSuite(name: "render", cases: [
             SPARQLConformanceCase(id: "no-template", test: SPARQLConformance.RenderQueryTestIndividual())
         ])
-        let report = SPARQLConformanceRunner().run(suite: suite, loadFixture: fixture)
+        let report = SPARQLConformanceRunner().run(suite: suite, loadFixture: { try Fixture.data($0, in: .module) })
 
         #expect(report.failedCount == 1)
         #expect(report.results.first?.message == String(describing: SPARQLConformanceError.missingQueryTemplate("no-template")))

@@ -2,6 +2,8 @@ import FOAF
 import Foundation
 import IRIKit
 import RDFCore
+import ServiceDescription
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -53,10 +55,10 @@ struct SPARQLGrammarValidationTests {
     @Test("A VALUES row must hold one entry per variable")
     func valuesRowWidthIsChecked() throws {
         #expect(throws: SPARQLError.invalidRequest("A VALUES row has 1 entries for 2 variables.")) {
-            try SPARQLValues(variables: ["s", "o"], rows: [[.iri("http://example.org/a")]])
+            try SPARQLValues(variables: ["s", "o"], rows: [[.term(FOAF.PersonIndividual.sparql)]])
         }
         #expect(throws: SPARQLError.self) {
-            try SPARQLValues(variables: ["s"], rows: [[.iri("http://example.org/a"), nil]])
+            try SPARQLValues(variables: ["s"], rows: [[.term(FOAF.PersonIndividual.sparql), nil]])
         }
         #expect(try SPARQLValues(variables: ["s", "o"], rows: [[nil, nil]]).rows.count == 1)
     }
@@ -75,8 +77,8 @@ struct SPARQLGrammarValidationTests {
     }
 
     @Test("A GRAPH name is an IRI or a variable")
-    func graphNameIsIRIOrVariable() {
-        let named = SPARQLPattern.graph(.iri("http://example.org/g"), anything)
+    func graphNameIsIRIOrVariable() throws {
+        let named = SPARQLPattern.graph(.iri(try Fixture("update_terms.ttl", in: .module).namedGraph()), anything)
         let ranging = SPARQLPattern.graph(.variable("g"), anything)
         #expect(SPARQLSelectQuery(where: [named]).render().contains("GRAPH <http://example.org/g> {"))
         #expect(SPARQLSelectQuery(where: [ranging]).render().contains("GRAPH ?g {"))

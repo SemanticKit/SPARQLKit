@@ -1,0 +1,5 @@
+# A service whose entailment regime the entailment vocabulary declares.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix ent: <http://www.w3.org/ns/entailment/> .
+
+<https://example.org/sparql> a sd:Service ; sd:defaultEntailmentRegime ent:OWL-Direct .

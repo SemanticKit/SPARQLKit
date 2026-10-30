@@ -74,16 +74,29 @@ let package = Package(
             plugins: translated
         ),
 
+        // The fixture reading both test targets share.
+        .target(
+            name: "SPARQLKitTestSupport",
+            dependencies: [
+                "ServiceDescription",
+                .product(name: "IRIKit", package: "IRIKit"),
+                .product(name: "RDFFormats", package: "RDFKit")
+            ] + layers,
+            path: "Tests/SPARQLKitTestSupport"
+        ),
         .testTarget(
             name: "SPARQLKitTests",
             dependencies: [
                 "SPARQLKit",
+                "SPARQLKitTestSupport",
                 "ServiceDescription",
                 "Formats",
                 "EntailmentRegimes",
                 "FOAF",
                 "SPARQLConformance",
                 "TestManifest",
+                "TestQuery",
+                "TestUpdate",
                 .product(name: "IRIKit", package: "IRIKit"),
                 .product(name: "RDFFormats", package: "RDFKit")
             ] + layers,
@@ -93,6 +106,7 @@ let package = Package(
             name: "SPARQLKitIntegrationTests",
             dependencies: [
                 "SPARQLKit",
+                "SPARQLKitTestSupport",
                 "ServiceDescription",
                 "Formats",
                 "EntailmentRegimes",

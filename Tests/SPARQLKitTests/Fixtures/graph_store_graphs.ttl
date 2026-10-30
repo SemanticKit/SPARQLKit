@@ -1,4 +1,0 @@
-# Graph names for the Graph Store Protocol tests: the subject names the
-# named graph, the object a graph IRI whose query characters the graph
-# parameter percent-encodes.
-<https://example.org/g> <https://example.org/graphs#encodes> <https://example.org/g?a=1&b=c+d> .

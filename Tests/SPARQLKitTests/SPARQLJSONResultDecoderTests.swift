@@ -1,4 +1,5 @@
 import Foundation
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -8,7 +9,7 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("Bindings decode into terms")
     func decodesBindings() throws {
-        let result: SPARQLResultSet = try decoder.decode(try fixture("select_result.json"))
+        let result: SPARQLResultSet = try decoder.decode(try Fixture.data("select_result.json", in: .module))
 
         #expect(result.variables == ["name", "count"])
         #expect(result.bindings.count == 3)
@@ -19,7 +20,7 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("An ASK result decodes to its boolean")
     func decodesBoolean() throws {
-        #expect(try (decoder.decode(try fixture("ask_result_true.json")) as SPARQLQueryResult) == .boolean(true))
+        #expect(try (decoder.decode(try Fixture.data("ask_result_true.json", in: .module)) as SPARQLQueryResult) == .boolean(true))
     }
 
     @Test("An ASK result whose head has no vars decodes")
@@ -29,7 +30,7 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("Asking for bindings from a boolean document fails")
     func bindingsFromBooleanFails() throws {
-        let data = try fixture("ask_result_true.json")
+        let data = try Fixture.data("ask_result_true.json", in: .module)
         #expect(throws: SPARQLError.decodingFailure("Expected bindings payload, found boolean ASK result.")) {
             _ = try decoder.decode(data) as SPARQLResultSet
         }
@@ -37,7 +38,7 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("A document with both a boolean and results is rejected")
     func mixedDocumentFails() throws {
-        let data = try fixture("invalid_mixed_result.json")
+        let data = try Fixture.data("invalid_mixed_result.json", in: .module)
         #expect(throws: SPARQLError.decodingFailure("Invalid mixed JSON result payload.")) {
             _ = try (decoder.decode(data) as SPARQLQueryResult)
         }
@@ -45,7 +46,7 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("IRIs, blank nodes, language-tagged and typed literals decode")
     func decodesEveryTermKind() throws {
-        let result: SPARQLResultSet = try decoder.decode(try fixture("term_coverage_result.json"))
+        let result: SPARQLResultSet = try decoder.decode(try Fixture.data("term_coverage_result.json", in: .module))
 
         #expect(result.variables == ["u", "b", "lang", "typed"])
         let first = try #require(result.bindings.first)
@@ -57,7 +58,7 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("Triple terms and directional literals decode; xsd:string is a simple literal")
     func decodesTripleTermsAndDirections() throws {
-        let row = try #require(try decoder.decode(try fixture("select_result_json_triple_terms.json")).bindings.first)
+        let row = try #require(try decoder.decode(try Fixture.data("select_result_json_triple_terms.json", in: .module)).bindings.first)
 
         #expect(row["triple"] == triple("http://example.org/alice", "http://example.org/name", try literal("Alice")))
         #expect(row["label"] == (try literal("chat", language: "fr", direction: .ltr)))
@@ -65,20 +66,20 @@ struct SPARQLJSONResultDecoderTests {
 
     @Test("The version comes from the document, else from the media type")
     func decodesVersion() throws {
-        #expect(try decoder.decode(try fixture("select_result_with_version.json")).version == "1.2")
+        #expect(try decoder.decode(try Fixture.data("select_result_with_version.json", in: .module)).version == "1.2")
 
-        let fromDocument = try decoder.decode(try fixture("ask_result_true_with_version.json"), contentType: nil)
+        let fromDocument = try decoder.decode(try Fixture.data("ask_result_true_with_version.json", in: .module), contentType: nil)
         #expect(fromDocument.version == "1.2")
         #expect(fromDocument.result == .boolean(true))
 
         let fromMediaType = try decoder.decode(
-            try fixture("ask_result_true.json"),
+            try Fixture.data("ask_result_true.json", in: .module),
             contentType: "application/sparql-results+json; charset=utf-8; version=1.2"
         )
         #expect(fromMediaType.version == "1.2")
 
         let preferred = try decoder.decode(
-            try fixture("ask_result_true_with_version.json"),
+            try Fixture.data("ask_result_true_with_version.json", in: .module),
             contentType: "application/sparql-results+json; version=1.1"
         )
         #expect(preferred.version == "1.2")

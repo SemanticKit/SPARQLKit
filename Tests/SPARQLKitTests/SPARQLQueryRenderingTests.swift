@@ -3,19 +3,34 @@ import IRIKit
 import RDF
 import RDFCore
 import RDFFormats
+import ServiceDescription
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
 @Suite("Typed queries render to SPARQL", .tags(.rendering))
 struct SPARQLQueryRenderingTests {
-    let terms: (subject: IRI, predicate: IRI, object: IRI)
-    let dataset: (subject: IRI, predicate: IRI, object: IRI)
-    let example: (subject: IRI, predicate: IRI, object: IRI)
+    /// Alice, whom the rendering terms state she knows, and the named graph
+    /// they name.
+    let alice: IRI
+    let known: IRI
+    let graphName: IRI
+    let dataset: Fixture
+    let ignoredGraph: IRI
+    /// The subject and object of the example triple.
+    let exampleSubject: IRI
+    let exampleObject: IRI
 
     init() throws {
-        terms = try fixtureIRIs("rendering_terms.ttl")
-        dataset = try fixtureIRIs("rendering_dataset.ttl")
-        example = try fixtureIRIs("example_triple.ttl")
+        let terms = try Fixture("rendering_terms.ttl", in: .module)
+        alice = try terms.subject(FOAF.knows)
+        known = try terms.iri(FOAF.knows)
+        graphName = try terms.namedGraph()
+        dataset = try Fixture("rendering_dataset.ttl", in: .module)
+        ignoredGraph = try Fixture("rendering_subquery_dataset.ttl", in: .module).iri(ServiceDescription.defaultGraph)
+        let example = try Fixture("example_triple.ttl", in: .module).triple()
+        exampleSubject = try #require(example.subjectIRI)
+        exampleObject = try #require(example.objectIRI)
     }
 
     func pattern(_ s: Variable, _ p: SPARQLTerm, _ o: Variable) -> SPARQLPattern {
@@ -51,10 +66,10 @@ struct SPARQLQueryRenderingTests {
                 .optional([pattern("s", FOAF.nick.sparql, "opt")]),
                 .union([[pattern("s", FOAF.name.sparql, "o1")], [pattern("s", FOAF.knows.sparql, "o2")]]),
                 .minus([pattern("s", FOAF.page.sparql, "x")]),
-                .graph(.iri(terms.predicate), [pattern("s", FOAF.name.sparql, "g")]),
+                .graph(.iri(graphName), [pattern("s", FOAF.name.sparql, "g")]),
                 .filter(.builtIn(.bound, [.variable("o2")])),
                 .bind(.builtIn(.strlen, [.builtIn(.str, [.variable("o2")])]), as: "calc"),
-                .values(try SPARQLValues(variables: ["s"], rows: [[.iri(terms.object)], [.term(FOAF.PersonIndividual.sparql)]]))
+                .values(try SPARQLValues(variables: ["s"], rows: [[.iri(known)], [.term(FOAF.PersonIndividual.sparql)]]))
             ]
         )
 
@@ -92,13 +107,13 @@ struct SPARQLQueryRenderingTests {
         let query = SPARQLSelectQuery(
             ["s", "count"],
             distinct: true,
-            fromGraphs: [dataset.subject],
-            fromNamedGraphs: [dataset.predicate],
+            fromGraphs: dataset.defaultGraphs,
+            fromNamedGraphs: dataset.namedGraphs,
             where: [
                 pattern("s", FOAF.name.sparql, "o"),
                 .values(try SPARQLValues(
                     variables: ["s", "o"],
-                    rows: [[.iri(terms.object), .literal(Literal("one"))], [nil, .literal(Literal("two"))]]
+                    rows: [[.iri(known), .literal(Literal("one"))], [nil, .literal(Literal("two"))]]
                 ))
             ],
             groupBy: ["s"],
@@ -124,7 +139,7 @@ struct SPARQLQueryRenderingTests {
     func subqueryRenders() {
         let inner = SPARQLSelectQuery(
             ["s"],
-            fromGraphs: [dataset.object],
+            fromGraphs: [ignoredGraph],
             where: [pattern("s", FOAF.name.sparql, "o")],
             limit: 5
         )
@@ -182,7 +197,7 @@ struct SPARQLQueryRenderingTests {
         let call = SPARQLExpression.function(RDF.JSONIndividual.sparql, [.variable("n")])
         #expect(call.render() == "<http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON>(?n)")
 
-        let membership = SPARQLExpression.notIn(.variable("x"), [.iri(terms.object), .term(FOAF.PersonIndividual.sparql), .literal(Literal("b"))])
+        let membership = SPARQLExpression.notIn(.variable("x"), [.iri(known), .term(FOAF.PersonIndividual.sparql), .literal(Literal("b"))])
         #expect(membership.render() == #"(?x NOT IN (<http://example.org/a>, <http://xmlns.com/foaf/0.1/Person>, "b"))"#)
 
         let joined = SPARQLExpression.aggregate(.groupConcat(separator: ", "), distinct: false, .variable("name"))
@@ -214,7 +229,7 @@ struct SPARQLQueryRenderingTests {
 
     @Test("A decoded term becomes the pattern position that matches it")
     func decodedTermBecomesPatternTerm() throws {
-        let term = triple(terms.subject, IRI(of: FOAF.name)!, try literal("Alice"))
+        let term = triple(alice, IRI(of: FOAF.name)!, try literal("Alice"))
         #expect(try SPARQLPatternTerm(term).render() == #"<<( <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice" )>>"#)
     }
 
@@ -222,7 +237,7 @@ struct SPARQLQueryRenderingTests {
     func decodedBlankNodeIsRefused() throws {
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("a b.")) }
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(blank("b1")) }
-        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name)!, object: .iri(example.object)))
+        let nested = ObjectTerm.tripleTerm(Triple(subject: .blankNode(try BlankNode("b1")), predicate: IRI(of: FOAF.name)!, object: .iri(exampleObject)))
         #expect(throws: SPARQLError.self) { try SPARQLPatternTerm(nested) }
     }
 
@@ -265,7 +280,7 @@ struct SPARQLQueryRenderingTests {
             """)
 
         let describe = try SPARQLDescribeQuery(
-            [.variable("person"), .iri(terms.subject)],
+            [.variable("person"), .iri(alice)],
             where: [.triple(SPARQLTriplePattern(.variable("person"), .variable("p"), .variable("o")))],
             limit: 5
         )

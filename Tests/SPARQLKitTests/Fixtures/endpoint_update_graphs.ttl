@@ -1,3 +1,0 @@
-# An update dataset: the subject is its USING graph, the object its USING
-# NAMED graph.
-<https://example.org/u-default> <https://example.org/graphs#using> <https://example.org/u-named> .

@@ -1,5 +1,5 @@
-# A query dataset: the subject is a FROM graph, the predicate a FROM NAMED
-# graph and the object a FROM graph a query form ignores.
+# The dataset of the rendered query: its FROM graph and its FROM NAMED graph.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
 @prefix ex: <http://example.org/> .
 
-ex:default ex:named ex:ignored .
+[] a sd:Dataset ; sd:defaultGraph ex:default ; sd:namedGraph [ sd:name ex:named ] .

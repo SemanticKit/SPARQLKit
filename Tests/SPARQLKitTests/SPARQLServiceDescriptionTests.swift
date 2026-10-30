@@ -8,6 +8,7 @@ import FoundationNetworking
 import RDFCore
 import RDFFormats
 import ServiceDescription
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -40,7 +41,7 @@ struct SPARQLServiceDescriptionTests {
 
     @Test("A Turtle description decodes into the translated sd:Service and the individuals it names")
     func decodesIntoTranslatedIndividuals() throws {
-        let turtle = try #require(String(data: try fixture("service_description.ttl"), encoding: .utf8))
+        let turtle = try #require(String(data: try Fixture.data("service_description.ttl", in: .module), encoding: .utf8))
         let decoded = try SPARQLServiceDescriptionDecoder().decode(turtle)
         let description = decoded.service
 
@@ -196,8 +197,9 @@ struct SPARQLServiceDescriptionTests {
 
     @Test("A result term decodes into the translated individual it denotes", .tags(.vocabulary))
     func iriDenotesTranslatedIndividual() throws {
-        let terms = try fixtureIRIs("entailment_binding_terms.ttl")
-        let binding: Binding = ["regime": .iri(terms.subject), "other": .iri(terms.object)]
+        let declared = try Fixture("entailment_regime_declared.ttl", in: .module).iri(ServiceDescription.defaultEntailmentRegime)
+        let undeclared = try Fixture("entailment_regime_undeclared.ttl", in: .module).iri(ServiceDescription.defaultEntailmentRegime)
+        let binding: Binding = ["regime": .iri(declared), "other": .iri(undeclared)]
         let regimes: [any EntailmentRegimes.Entailment] = [EntailmentRegimes.RDFS, EntailmentRegimes.`OWL-Direct`]
         #expect(binding.individual("regime", among: regimes) === EntailmentRegimes.`OWL-Direct`)
         #expect(binding.individual("other", among: regimes) == nil)

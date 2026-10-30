@@ -5,6 +5,7 @@ import FoundationNetworking
 import IRIKit
 import RDFCore
 import RDFFormats
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -16,8 +17,9 @@ struct SPARQLGraphStoreClientTests {
     let triple: Graph.Element
 
     init() throws {
-        (named, _, encoded) = try fixtureIRIs("graph_store_graphs.ttl")
-        triple = try fixtureTriple("example_triple.ttl")
+        named = try Fixture("graph_store_named.ttl", in: .module).namedGraph()
+        encoded = try Fixture("graph_store_encoded.ttl", in: .module).namedGraph()
+        triple = try Fixture("example_triple.ttl", in: .module).triple()
     }
 
     func client(_ session: MockSession, headers: [String: String] = [:], authentication: EndpointAuthentication? = nil) -> SPARQLGraphStoreClient {
@@ -149,7 +151,7 @@ struct SPARQLGraphStoreClientTests {
     @Test("Relative IRIs in a returned graph resolve against the graph's URL")
     func relativeIRIsResolveAgainstRetrievalURL() async throws {
         let session = MockSession(body: "<#a> <#b> <c> .")
-        #expect(try await client(session).getGraph(.defaultGraph) == fixtureGraph("graph_store_default_resolved.ttl"))
-        #expect(try await client(session).getGraph(.named(named), accept: .turtle) == fixtureGraph("graph_store_named_resolved.ttl"))
+        #expect(try await client(session).getGraph(.defaultGraph) == Fixture("graph_store_default_resolved.ttl", in: .module).graph)
+        #expect(try await client(session).getGraph(.named(named), accept: .turtle) == Fixture("graph_store_named_resolved.ttl", in: .module).graph)
     }
 }

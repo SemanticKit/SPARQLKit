@@ -2,6 +2,7 @@ import Foundation
 import IRIKit
 import RDFCore
 import RDFFormats
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -11,7 +12,7 @@ struct SPARQLGraphResultDecoderTests {
 
     @Test("A Turtle graph decodes into its set of triples")
     func decodesTurtle() throws {
-        let graph = try SPARQLGraphResultDecoder().decode(try fixture("construct_result_turtle.ttl"), as: .turtle)
+        let graph = try SPARQLGraphResultDecoder().decode(try Fixture.data("construct_result_turtle.ttl", in: .module), as: .turtle)
 
         #expect(graph == [
             Graph.Element(subject: .iri("http://example.org/alice"), predicate: knows, object: .iri("http://example.org/bob")),

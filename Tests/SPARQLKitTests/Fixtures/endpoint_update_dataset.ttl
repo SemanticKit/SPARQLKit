@@ -1,0 +1,7 @@
+# The RDF dataset an update runs against (SPARQL 1.2 Protocol §2.2.3): its
+# USING graph and its USING NAMED graph.
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+
+[] a sd:Dataset ;
+  sd:defaultGraph <https://example.org/u-default> ;
+  sd:namedGraph [ sd:name <https://example.org/u-named> ] .

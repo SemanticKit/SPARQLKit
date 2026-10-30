@@ -9,6 +9,7 @@ import IRIKit
 import RDFCore
 import RDFFormats
 import ServiceDescription
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -32,8 +33,12 @@ struct SPARQLEndpointIntegrationTests {
             queryURL: try #require(Environment.queryURL),
             updateURL: Environment.updateURL
         ))
-        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? fixtureIRIs("default_graphs.ttl").subject
-        let (subject, objectA, objectB) = try fixtureIRIs("update_terms.ttl")
+        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? Fixture("update_graph.ttl", in: .module).namedGraph()
+        let removed = try Fixture("update_removed.ttl", in: .module).triple(FOAF.knows)
+        let kept = try Fixture("update_kept.ttl", in: .module).triple(FOAF.knows)
+        let subject = try #require(kept.subjectIRI)
+        let objectA = try #require(removed.objectIRI)
+        let objectB = try #require(kept.objectIRI)
         func triple(_ object: IRI) -> SPARQLTriplePattern {
             SPARQLTriplePattern(.iri(subject), .property(FOAF.knows.sparql), .iri(object))
         }
@@ -56,8 +61,8 @@ struct SPARQLEndpointIntegrationTests {
     @Test("A graph put through the Graph Store comes back", .enabled(if: Environment.graphStoreURL != nil))
     func graphStoreRoundTrip() async throws {
         let client = SPARQLGraphStoreClient(configuration: SPARQLGraphStoreConfiguration(graphStoreURL: try #require(Environment.graphStoreURL)))
-        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? fixtureIRIs("default_graphs.ttl").object
-        let triple = try fixtureTriple("graph_store_triple.ttl")
+        let graph = try Environment.iri("SPARQL_TEST_GRAPH_IRI") ?? Fixture("graph_store_graph.ttl", in: .module).namedGraph()
+        let triple = try Fixture("graph_store_triple.ttl", in: .module).triple(FOAF.knows)
 
         _ = try await client.putGraph([triple], graph: .named(graph))
         #expect(try await client.getGraph(.named(graph)).contains(triple))

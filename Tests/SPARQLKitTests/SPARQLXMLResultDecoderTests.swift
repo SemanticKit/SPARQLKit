@@ -1,4 +1,5 @@
 import Foundation
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -8,7 +9,7 @@ struct SPARQLXMLResultDecoderTests {
 
     @Test("Bindings decode into terms")
     func decodesBindings() throws {
-        let result: SPARQLResultSet = try decoder.decode(try fixture("select_result_xml.xml"))
+        let result: SPARQLResultSet = try decoder.decode(try Fixture.data("select_result_xml.xml", in: .module))
 
         #expect(result.variables == ["name", "count"])
         #expect(result.bindings.count == 2)
@@ -19,12 +20,12 @@ struct SPARQLXMLResultDecoderTests {
 
     @Test("An ASK result decodes to its boolean")
     func decodesBoolean() throws {
-        #expect(try (decoder.decode(try fixture("ask_result_true.xml")) as SPARQLQueryResult) == .boolean(true))
+        #expect(try (decoder.decode(try Fixture.data("ask_result_true.xml", in: .module)) as SPARQLQueryResult) == .boolean(true))
     }
 
     @Test("Asking for bindings from a boolean document fails")
     func bindingsFromBooleanFails() throws {
-        let data = try fixture("ask_result_true.xml")
+        let data = try Fixture.data("ask_result_true.xml", in: .module)
         #expect(throws: SPARQLError.decodingFailure("Expected bindings payload, found boolean ASK result.")) {
             _ = try decoder.decode(data) as SPARQLResultSet
         }
@@ -40,7 +41,7 @@ struct SPARQLXMLResultDecoderTests {
 
     @Test("A document with both a boolean and results is rejected")
     func mixedDocumentFails() throws {
-        let data = try fixture("invalid_mixed_result.xml")
+        let data = try Fixture.data("invalid_mixed_result.xml", in: .module)
         #expect(throws: SPARQLError.decodingFailure("Invalid mixed XML result payload.")) {
             _ = try (decoder.decode(data) as SPARQLQueryResult)
         }
@@ -48,7 +49,7 @@ struct SPARQLXMLResultDecoderTests {
 
     @Test("Triple terms and directional literals decode")
     func decodesTripleTermsAndDirections() throws {
-        let row = try #require(try decoder.decode(try fixture("select_result_xml_triple_terms.xml")).bindings.first)
+        let row = try #require(try decoder.decode(try Fixture.data("select_result_xml_triple_terms.xml", in: .module)).bindings.first)
 
         #expect(row["triple"] == triple("http://example.org/alice", "http://example.org/name", try literal("Alice")))
         #expect(row["label"] == (try literal("chat", language: "fr", direction: .ltr)))

@@ -2,19 +2,30 @@ import FOAF
 import IRIKit
 import RDF
 import RDFCore
+import ServiceDescription
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
 @Suite("Typed updates render to SPARQL Update", .tags(.rendering))
 struct SPARQLUpdateRenderingTests {
-    let alice: SPARQLPatternTerm = .iri("http://example.org/alice")
+    let alice: SPARQLPatternTerm
+    let known: SPARQLPatternTerm
+    let graph: IRI
+
+    init() throws {
+        let terms = try Fixture("update_terms.ttl", in: .module)
+        alice = .iri(try terms.subject(FOAF.knows))
+        known = .iri(try terms.iri(FOAF.knows))
+        graph = try terms.namedGraph()
+    }
 
     @Test("INSERT DATA and DELETE DATA write ground triples, in a named graph when given one")
     func dataOperationsRender() throws {
         let triple = SPARQLTriplePattern(alice, .property(FOAF.name.sparql), .literal(try Literal("Alice", languageTag: "en")))
         let update = try SPARQLUpdateRequest([
             .insertData([triple, SPARQLTriplePattern(alice, .a, .term(FOAF.PersonIndividual.sparql))]),
-            .deleteData([triple], graph: "http://example.org/g")
+            .deleteData([triple], graph: graph)
         ])
 
         #expect(update.render() == """
@@ -42,9 +53,9 @@ struct SPARQLUpdateRenderingTests {
     func deleteDataRefusesBlankNodes() throws {
         let node = SPARQLPatternTerm.blankNode(try SPARQLBlankNode("b1"))
         #expect(throws: SPARQLError.invalidRequest("DELETE DATA cannot hold a blank node.")) {
-            try SPARQLUpdateRequest([.deleteData([SPARQLTriplePattern(node, .property(FOAF.name.sparql), .iri("http://example.org/o"))])])
+            try SPARQLUpdateRequest([.deleteData([SPARQLTriplePattern(node, .property(FOAF.name.sparql), known)])])
         }
-        let nested = SPARQLPatternTerm.tripleTerm(subject: node, predicate: .term(FOAF.name.sparql), object: .iri("http://example.org/o"))
+        let nested = SPARQLPatternTerm.tripleTerm(subject: node, predicate: .term(FOAF.name.sparql), object: known)
         #expect(throws: SPARQLError.self) {
             try SPARQLUpdateRequest([.deleteData([SPARQLTriplePattern(alice, .property(RDF.reifies.sparql), nested)])])
         }
@@ -84,7 +95,7 @@ struct SPARQLUpdateRenderingTests {
     func modifyRenders() throws {
         let update = try SPARQLUpdateRequest([
             .modify(
-                with: "http://example.org/g",
+                with: graph,
                 delete: [SPARQLTriplePattern(.variable("s"), .property(FOAF.nick.sparql), .variable("o"))],
                 insert: [SPARQLTriplePattern(.variable("s"), .property(FOAF.name.sparql), .variable("o"))],
                 where: [.triple(SPARQLTriplePattern(.variable("s"), .property(FOAF.nick.sparql), .variable("o")))]
@@ -107,12 +118,16 @@ struct SPARQLUpdateRenderingTests {
 
     @Test("Graph management operations render their targets")
     func graphManagementRenders() throws {
-        let a: IRI = "http://example.org/a"
-        let b: IRI = "http://example.org/b"
+        let load = try Fixture("graph_load.ttl", in: .module)
+        let source = try load.iri(ServiceDescription.graph)
+        let g = try load.namedGraph()
+        let a = try Fixture("graph_copy_source.ttl", in: .module).namedGraph()
+        let b = try Fixture("graph_copy_target.ttl", in: .module).namedGraph()
+        let created = try Fixture("graph_created.ttl", in: .module).namedGraph()
         let update = try SPARQLUpdateRequest([
-            .load("http://example.org/source", into: "http://example.org/g"),
-            .clear(.named("http://example.org/g"), silent: true),
-            .create("http://example.org/new"),
+            .load(source, into: g),
+            .clear(.named(g), silent: true),
+            .create(created),
             .drop(.default),
             .copy(from: .named(a), to: .named(b)),
             .move(from: .named(a), to: .default, silent: true),

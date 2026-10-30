@@ -1,4 +1,5 @@
 import Foundation
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -8,7 +9,7 @@ struct SPARQLCSVResultDecoderTests {
 
     @Test("CSV values are simple literals: CSV does not record term kinds")
     func csvValuesAreSimpleLiterals() throws {
-        let result = try decoder.decode(try fixture("select_result_csv.csv"))
+        let result = try decoder.decode(try Fixture.data("select_result_csv.csv", in: .module))
 
         #expect(result.variables == ["name", "count"])
         #expect(result.bindings.count == 3)
@@ -19,7 +20,7 @@ struct SPARQLCSVResultDecoderTests {
 
     @Test("CSV quoted fields keep commas and doubled quotes; empty fields are unbound")
     func csvQuotingAndUnbound() throws {
-        let result = try decoder.decode(try fixture("select_result_csv_edge.csv"))
+        let result = try decoder.decode(try Fixture.data("select_result_csv_edge.csv", in: .module))
 
         #expect(result.bindings.count == 2)
         let first = try #require(result.bindings.first)
@@ -32,7 +33,7 @@ struct SPARQLCSVResultDecoderTests {
 
     @Test("CSV keeps term-like text as the text it is")
     func csvKeepsTermLikeText() throws {
-        let row = try #require(try decoder.decode(try fixture("select_result_csv_terms.csv")).bindings.first)
+        let row = try #require(try decoder.decode(try Fixture.data("select_result_csv_terms.csv", in: .module)).bindings.first)
 
         #expect(row["iri"] == (try literal("http://example.org/r")))
         #expect(row["bnode"] == (try literal("_:b1")))

@@ -1,5 +1,6 @@
 import Foundation
 import RDFCore
+import SPARQLKitTestSupport
 import Testing
 @testable import SPARQLKit
 
@@ -9,7 +10,7 @@ struct SPARQLTSVResultDecoderTests {
 
     @Test("TSV fields are Turtle terms, numbers included")
     func tsvFieldsAreTurtleTerms() throws {
-        let result = try decoder.decode(try fixture("select_result_tsv.tsv"))
+        let result = try decoder.decode(try Fixture.data("select_result_tsv.tsv", in: .module))
 
         #expect(result.variables == ["name", "count"])
         #expect(result.bindings.count == 3)
@@ -20,7 +21,7 @@ struct SPARQLTSVResultDecoderTests {
 
     @Test("TSV decodes IRIs, blank nodes, language-tagged and typed literals")
     func tsvDecodesEveryTermKind() throws {
-        let row = try #require(try decoder.decode(try fixture("select_result_tsv_terms.tsv")).bindings.first)
+        let row = try #require(try decoder.decode(try Fixture.data("select_result_tsv_terms.tsv", in: .module)).bindings.first)
 
         #expect(row["iri"] == iri("http://example.org/r"))
         #expect(try row["bnode"] == blank("b1"))
@@ -31,7 +32,7 @@ struct SPARQLTSVResultDecoderTests {
 
     @Test("TSV decodes triple terms and directional literals")
     func tsvDecodesTripleTerms() throws {
-        let row = try #require(try decoder.decode(try fixture("select_result_tsv_triple_terms.tsv")).bindings.first)
+        let row = try #require(try decoder.decode(try Fixture.data("select_result_tsv_triple_terms.tsv", in: .module)).bindings.first)
 
         #expect(row["triple"] == triple("http://example.org/alice", "http://example.org/name", try literal("Alice")))
         #expect(row["label"] == (try literal("chat", language: "fr", direction: .ltr)))
